@@ -34,6 +34,16 @@ Database e login su **Supabase**, sito su **Netlify** (piani gratuiti). Guida pa
 
 Per l'esecuzione automatica ogni mattina vedi il paragrafo 9 (`scripts\run_giornaliero.bat`).
 
+### Windows blocca le librerie ("Un criterio di controllo dell'applicazione ha bloccato il file")
+
+È il **Controllo intelligente delle app** di Windows 11, che blocca i file delle librerie scientifiche
+(numpy, pandas) perché non hanno la firma digitale. Per disattivarlo:
+*Sicurezza di Windows → Controllo app e browser → Impostazioni di Controllo intelligente delle app → Disattivato*.
+Poi riavvia `AVVIA.bat`. Sulle versioni attuali di Windows, una volta disattivato, in genere non si può
+riattivare senza reinstallare il sistema: Windows Defender (antivirus) resta comunque attivo.
+Se il PC è aziendale, il blocco può essere una regola dell'amministratore: in quel caso serve il suo intervento
+o un altro PC.
+
 ### Da riga di comando
 
 Serve Python 3.10 o superiore.
