@@ -21,8 +21,65 @@ from .storage import Storage
 log = logging.getLogger(__name__)
 
 
+_ZONE_SINCRONIZZATE: set[str] = set()
+
+
 def carica_zone(cfg) -> MicrozoneSet:
-    return MicrozoneSet.load(resolve(cfg, cfg["microzone"]["file"]))
+    """Microzone dal file GeoJSON; con sorgente "sito" prima le aggiorna da Supabase
+    (una volta per esecuzione), così le modifiche fatte nell'editor arrivano al bot."""
+    path = resolve(cfg, cfg["microzone"]["file"])
+    chiave = str(path)
+    if chiave not in _ZONE_SINCRONIZZATE:
+        _ZONE_SINCRONIZZATE.add(chiave)
+        try:
+            from .supabase_sync import scarica_zone, zone_dal_sito
+            if zone_dal_sito(cfg):
+                righe = scarica_zone(cfg)
+                if righe:
+                    _salva_zone_scaricate(path, righe)
+                    log.info("microzone aggiornate dal sito: %d", len(righe))
+        except Exception as e:  # noqa: BLE001 - senza rete si usa il file locale
+            log.warning("microzone dal sito non scaricate (uso il file locale): %s", e)
+    return MicrozoneSet.load(path)
+
+
+def _salva_zone_scaricate(path: Path, righe: list[dict]):
+    import json
+    feats = [{"type": "Feature", "properties": {**(r.get("props") or {}), "nome": r["nome"]},
+              "geometry": r["geojson"]} for r in righe]
+    nuovo = json.dumps({"type": "FeatureCollection", "features": feats}, ensure_ascii=False, indent=1)
+    if path.exists():
+        vecchio = path.read_text(encoding="utf-8")
+        if vecchio == nuovo:
+            return
+        path.with_suffix(".prima_del_sito.geojson").write_text(vecchio, encoding="utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(nuovo, encoding="utf-8")
+
+
+def riassegna_zone(cfg, storage: Storage, zone: MicrozoneSet, manuali: dict[str, str] | None = None) -> int:
+    """Ricalcola la microzona di tutti gli annunci con coordinate (dopo una modifica
+    dei confini) e applica le assegnazioni manuali fatte dal sito. Restituisce i cambi."""
+    tol = float(get(cfg, "microzone.tolleranza_confine_m", 0))
+    manuali = manuali or {}
+    nomi = set(zone.names())
+    cambi = 0
+    rows = storage.conn.execute("SELECT uid, lat, lon, microzona FROM annunci WHERE source != 'excel'").fetchall()
+    for r in rows:
+        nuova = r["microzona"]
+        if r["lat"] is not None and r["lon"] is not None:
+            nuova = zone.assign(r["lat"], r["lon"], tol)
+        elif nuova is not None and nuova not in nomi:
+            nuova = None                     # zona eliminata o rinominata
+        if r["uid"] in manuali and manuali[r["uid"]] in nomi:
+            nuova = manuali[r["uid"]]
+        if nuova != r["microzona"]:
+            storage.conn.execute("UPDATE annunci SET microzona=? WHERE uid=?", (nuova, r["uid"]))
+            cambi += 1
+    storage.commit()
+    if cambi:
+        log.info("microzona aggiornata per %d annunci (confini modificati o assegnazioni manuali)", cambi)
+    return cambi
 
 
 def assegna_zone(listings: list[Listing], zone: MicrozoneSet, cfg: dict, geocoder: Geocoder | None):
@@ -103,6 +160,14 @@ def _dettagli_immobiliare(cfg, storage, client, res: list[Listing]):
 
 def analizza_e_esporta(cfg, storage: Storage, zone: MicrozoneSet, alert: bool = True,
                        dry_run_alert: bool = False) -> dict:
+    manuali = {}
+    if get(cfg, "supabase.attivo", False):
+        from .supabase_sync import scarica_zone_manuali
+        try:
+            manuali = scarica_zone_manuali(cfg)
+        except Exception as e:  # noqa: BLE001
+            log.warning("assegnazioni manuali non scaricate: %s", e)
+    riassegna_zone(cfg, storage, zone, manuali)
     df = prepara(storage, cfg)
     omi = None
     if get(cfg, "analisi.omi.attivo", False):

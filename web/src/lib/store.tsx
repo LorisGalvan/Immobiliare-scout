@@ -1,7 +1,7 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { DEMO, supabase, TIPO_LINK } from "./supabase";
-import { caricaDataset, territori as listaTerritori, valutazioni as caricaValutazioni } from "./data";
+import { caricaDataset, territori as listaTerritori, valutazioni as caricaValutazioni, zoneManuali } from "./data";
 import type { Dataset, Valutazione } from "./types";
 
 // ------------------------------------------------------------------ Auth
@@ -44,6 +44,9 @@ interface DataCtx {
   setSoglia: (s: number) => void;
   valutazioni: Valutazione[];
   ricaricaValutazioni: () => void;
+  ricaricaDataset: () => Promise<void>;
+  manuali: Record<string, string>;
+  ricaricaManuali: () => void;
 }
 const DataContext = createContext<DataCtx>(null as unknown as DataCtx);
 
@@ -58,6 +61,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [caricamento, setCaricamento] = useState(true);
   const [soglia, setSogliaS] = useState<number>(Number(leggi("scout-soglia")) || NaN);
   const [valutazioni, setValutazioni] = useState<Valutazione[]>([]);
+  const [manuali, setManuali] = useState<Record<string, string>>({});
 
   useEffect(() => {
     listaTerritori()
@@ -70,14 +74,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
+  const ricaricaDataset = useCallback(async () => {
     if (!territorio) return;
     setCaricamento(true);
-    caricaDataset(territorio)
-      .then((d) => { setDataset(d); setErrore(null); })
-      .catch((e) => setErrore(String(e.message ?? e)))
-      .finally(() => setCaricamento(false));
+    try {
+      setDataset(await caricaDataset(territorio));
+      setErrore(null);
+    } catch (e) {
+      setErrore(String((e as Error).message ?? e));
+    } finally {
+      setCaricamento(false);
+    }
   }, [territorio]);
+  useEffect(() => { ricaricaDataset(); }, [ricaricaDataset]);
+
+  const ricaricaManuali = useCallback(() => {
+    if (territorio) zoneManuali(territorio).then(setManuali).catch(() => {});
+  }, [territorio]);
+  useEffect(ricaricaManuali, [ricaricaManuali]);
 
   const ricaricaValutazioni = useCallback(() => {
     caricaValutazioni().then(setValutazioni).catch(() => {});
@@ -86,10 +100,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<DataCtx>(() => ({
     territori, territorio, dataset, errore, caricamento, valutazioni, ricaricaValutazioni,
+    ricaricaDataset, manuali, ricaricaManuali,
     setTerritorio: (t) => { scrivi("scout-territorio", t); setTerritorioS(t); },
     soglia: isNaN(soglia) ? (dataset?.soglia ?? -15) : soglia,
     setSoglia: (s) => { scrivi("scout-soglia", String(s)); setSogliaS(s); },
-  }), [territori, territorio, dataset, errore, caricamento, soglia, valutazioni, ricaricaValutazioni]);
+  }), [territori, territorio, dataset, errore, caricamento, soglia, valutazioni, ricaricaValutazioni,
+    ricaricaDataset, manuali, ricaricaManuali]);
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 export const useData = () => useContext(DataContext);

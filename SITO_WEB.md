@@ -33,6 +33,12 @@ Costo: piani gratuiti di Supabase e Netlify sono sufficienti.
    - chiave **anon / publishable** → per il sito (è pubblica, protetta dal login)
    - chiave **service_role / secret** → solo per il PC del bot. **Non metterla mai nel sito né su GitHub.**
 
+### Aggiornamento: editor delle microzone
+Per abilitare la pagina **Microzone → Modifica microzone** esegui anche
+[`supabase/migrazione_002_editor_zone.sql`](supabase/migrazione_002_editor_zone.sql) nel SQL Editor (una volta).
+Con `microzone.sorgente: sito` (default) il bot scarica a ogni esecuzione le zone modificate dal sito,
+riassegna gli annunci ai nuovi confini e applica le assegnazioni manuali.
+
 ## 2. Bot: pubblicare i dati
 
 Sul PC che esegue il bot, nel file `config.local.yaml` (non viene caricato su GitHub):

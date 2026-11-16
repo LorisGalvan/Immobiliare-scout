@@ -38,9 +38,10 @@ export async function territori(): Promise<string[]> {
 export async function caricaDataset(territorio: string): Promise<Dataset> {
   if (DEMO) {
     const d = await demo();
+    const salvate = zoneDemoSalvate();
     return {
       territorio: d.territorio,
-      zone: d.zone,
+      zone: salvate ? salvate.map((z) => ({ ...z, territorio: d.territorio })) : d.zone,
       annunci: d.annunci,
       mediane: d.mediane,
       frazionabili: d.frazionabili,
@@ -107,4 +108,58 @@ export async function salvaValutazione(v: Pick<Valutazione, "uid" | "stato" | "n
     { onConflict: "uid,user_id" },
   );
   if (error) throw error;
+}
+
+// ---------------------------------------------------------------- Editor microzone
+export interface ZonaEditabile { nome: string; geojson: Zona["geojson"]; props?: Record<string, unknown>; ordine?: number }
+export interface VersioneZone { id: number; ts: string; salvato_da: string | null; nota: string | null; zone: ZonaEditabile[] }
+
+const LS_ZONE = "scout-zone-demo";
+const LS_VERS = "scout-zone-versioni-demo";
+const LS_MAN = "scout-zona-manuale-demo";
+const leggi = <T,>(k: string, def: T): T => { try { return JSON.parse(localStorage.getItem(k) || "null") ?? def; } catch { return def; } };
+const scrivi = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignora */ } };
+
+/** Zone salvate in demo (solo in questo browser), se l'utente le ha modificate. */
+export const zoneDemoSalvate = (): ZonaEditabile[] | null => (DEMO ? leggi<ZonaEditabile[] | null>(LS_ZONE, null) : null);
+
+export async function salvaZone(territorio: string, zone: ZonaEditabile[], nota: string, email: string): Promise<number> {
+  const pulite = zone.map((z, i) => ({ nome: z.nome.trim(), geojson: z.geojson, props: z.props ?? {}, ordine: i }));
+  if (DEMO) {
+    scrivi(LS_ZONE, pulite);
+    const v = leggi<VersioneZone[]>(LS_VERS, []);
+    scrivi(LS_VERS, [{ id: Date.now(), ts: new Date().toISOString(), salvato_da: email, nota, zone: pulite }, ...v].slice(0, 20));
+    return pulite.length;
+  }
+  const { data, error } = await supabase!.rpc("salva_zone", { p_territorio: territorio, p_zone: pulite, p_nota: nota || null });
+  if (error) throw error;
+  return data as number;
+}
+
+export async function versioniZone(territorio: string): Promise<VersioneZone[]> {
+  if (DEMO) return leggi<VersioneZone[]>(LS_VERS, []);
+  const { data, error } = await supabase!.from("zone_versioni").select("*").eq("territorio", territorio)
+    .order("ts", { ascending: false }).limit(20);
+  if (error) throw error;
+  return data as VersioneZone[];
+}
+
+export async function zoneManuali(territorio: string): Promise<Record<string, string>> {
+  if (DEMO) return leggi<Record<string, string>>(LS_MAN, {});
+  const { data, error } = await supabase!.from("zona_manuale").select("uid,microzona").eq("territorio", territorio);
+  if (error) return {};          // migrazione non ancora eseguita
+  return Object.fromEntries((data ?? []).map((r: { uid: string; microzona: string }) => [r.uid, r.microzona]));
+}
+
+export async function assegnaZona(territorio: string, uid: string, microzona: string | null) {
+  if (DEMO) {
+    const m = leggi<Record<string, string>>(LS_MAN, {});
+    if (microzona) m[uid] = microzona; else delete m[uid];
+    scrivi(LS_MAN, m);
+    return;
+  }
+  const r = microzona
+    ? await supabase!.from("zona_manuale").upsert({ uid, territorio, microzona, aggiornato: new Date().toISOString() })
+    : await supabase!.from("zona_manuale").delete().eq("uid", uid);
+  if (r.error) throw r.error;
 }

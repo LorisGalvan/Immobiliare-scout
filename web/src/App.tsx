@@ -12,6 +12,7 @@ import Frazionabili from "./pages/Frazionabili";
 import Ribassi from "./pages/Ribassi";
 import Annuncio from "./pages/Annuncio";
 import ImpostaPassword from "./pages/ImpostaPassword";
+import EditorZone from "./pages/EditorZone";
 import { Vuoto } from "./components/ui";
 
 function Contenuto() {
@@ -32,6 +33,7 @@ function Contenuto() {
       <Route path="/mappa" element={<MappaPage />} />
       <Route path="/microzone" element={<Microzone />} />
       <Route path="/microzone/:nome" element={<Zona />} />
+      <Route path="/editor-zone" element={<EditorZone />} />
       <Route path="/frazionabili" element={<Frazionabili />} />
       <Route path="/ribassi" element={<Ribassi />} />
       <Route path="/annuncio/:uid" element={<Annuncio />} />

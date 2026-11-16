@@ -16,6 +16,9 @@ territorio:
 
 microzone:
   file: data/zone/san_giovanni_lupatoto.geojson   # poligoni (importati dagli Excel o generati da OSM)
+  # "sito": le microzone si modificano nell'editor del sito web e il bot le scarica
+  #         a ogni esecuzione (serve supabase attivo). "file": si usa solo il file sopra.
+  sorgente: sito
   # Se un annuncio cade fuori da tutti i poligoni ma entro questa distanza (metri)
   # dal poligono più vicino, viene assegnato a quello (utile per annunci sul confine).
   tolleranza_confine_m: 60

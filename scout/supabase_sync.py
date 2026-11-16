@@ -142,6 +142,19 @@ class Supabase:
         if r.status_code >= 300:
             raise RuntimeError(f"Supabase insert {table}: HTTP {r.status_code} {r.text[:300]}")
 
+    def select(self, table: str, params: dict) -> list[dict]:
+        out, passo = [], 1000
+        for da in range(0, 1_000_000, passo):
+            r = self.s.get(f"{self.url}/rest/v1/{table}", params=params, timeout=self.timeout,
+                           headers={"Range-Unit": "items", "Range": f"{da}-{da + passo - 1}"})
+            if r.status_code >= 300:
+                raise RuntimeError(f"Supabase select {table}: HTTP {r.status_code} {r.text[:300]}")
+            rows = r.json()
+            out += rows
+            if len(rows) < passo:
+                return out
+        return out
+
     def upload(self, bucket: str, path: str, file: Path, content_type: str):
         with open(file, "rb") as f:
             r = self.s.post(f"{self.url}/storage/v1/object/{bucket}/{path}", data=f, timeout=180,
@@ -157,6 +170,40 @@ def credenziali(cfg) -> tuple[str | None, str | None]:
     return url, key
 
 
+def client(cfg) -> "Supabase | None":
+    s = cfg.get("supabase", {}) or {}
+    url, key = credenziali(cfg)
+    return Supabase(url, key) if (s.get("attivo") and url and key) else None
+
+
+def zone_dal_sito(cfg) -> bool:
+    """True se le microzone sono gestite dall'editor del sito (sorgente: sito)."""
+    return (cfg.get("microzone", {}) or {}).get("sorgente", "file") == "sito" and client(cfg) is not None
+
+
+def scarica_zone(cfg) -> list[dict]:
+    """Zone del territorio salvate su Supabase (vuoto se non ce ne sono)."""
+    sb = client(cfg)
+    if not sb:
+        return []
+    return sb.select("zone", {"territorio": f"eq.{cfg['territorio']['nome']}",
+                              "select": "nome,geojson,props,ordine", "order": "ordine"})
+
+
+def scarica_zone_manuali(cfg) -> dict[str, str]:
+    """uid -> microzona assegnata a mano dal sito."""
+    sb = client(cfg)
+    if not sb:
+        return {}
+    try:
+        rows = sb.select("zona_manuale", {"territorio": f"eq.{cfg['territorio']['nome']}",
+                                          "select": "uid,microzona"})
+    except RuntimeError as e:      # migrazione 002 non ancora eseguita
+        log.warning("assegnazioni manuali non disponibili: %s", e)
+        return {}
+    return {r["uid"]: r["microzona"] for r in rows}
+
+
 def pubblica(cfg, storage, risultato: dict, zone) -> bool:
     s = cfg.get("supabase", {}) or {}
     url, key = credenziali(cfg)
@@ -167,10 +214,12 @@ def pubblica(cfg, storage, risultato: dict, zone) -> bool:
     p = costruisci_payload(cfg, storage, risultato, zone, run_id)
     terr = p["territorio"]
     sb = Supabase(url, key)
-    sb.upsert("zone", p["zone"], "territorio,nome")
-    sb.delete("zone", {"territorio": f"eq.{terr}", "nome": "not.in.(" + ",".join(
-        '"' + z["nome"].replace('"', '""') + '"' for z in p["zone"]) + ")"} if p["zone"] else
-        {"territorio": f"eq.{terr}"})
+    # con sorgente "sito" le zone le gestisce l'editor: il bot le pubblica solo la prima volta
+    if not zone_dal_sito(cfg) or not sb.select("zone", {"territorio": f"eq.{terr}", "select": "nome", "limit": "1"}):
+        sb.upsert("zone", p["zone"], "territorio,nome")
+        sb.delete("zone", {"territorio": f"eq.{terr}", "nome": "not.in.(" + ",".join(
+            '"' + z["nome"].replace('"', '""') + '"' for z in p["zone"]) + ")"} if p["zone"] else
+            {"territorio": f"eq.{terr}"})
     sb.upsert("annunci", p["annunci"], "uid")
     sb.delete("annunci", {"territorio": f"eq.{terr}", "run_id": f"neq.{run_id}"})
     sb.upsert("prezzi", p["prezzi"], "uid,data")

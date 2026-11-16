@@ -24,11 +24,14 @@ export default function Microzone() {
     <>
       <Titolo sotto="Mediana €/mq per fascia di superficie (tra parentesi il numero di annunci)"
         azioni={
+          <div className="flex gap-2">
+          <Link to="/editor-zone" className="btn-primary">Modifica microzone</Link>
           <select className="input w-auto" value={ord} onChange={(e) => setOrd(e.target.value as typeof ord)}>
             <option value="nome">Ordine dei fogli</option>
             <option value="mediana">Più care</option>
             <option value="occasioni">Più occasioni</option>
           </select>
+          </div>
         }>
         Microzone
       </Titolo>
