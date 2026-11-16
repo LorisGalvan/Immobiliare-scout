@@ -1,0 +1,1 @@
+Inserisci qui il CSV OMI (QI_..._VALORI.csv) rinominato QI_VALORI.csv

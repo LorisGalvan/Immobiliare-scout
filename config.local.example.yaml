@@ -1,0 +1,15 @@
+# Copia questo file come "config.local.yaml" (non viene caricato su GitHub)
+# e inserisci qui i TUOI dati personali: sovrascrivono quelli di config.yaml.
+alert:
+  telegram:
+    attivo: true
+    token: "123456:ABC..."
+    chat_id: "123456789"
+  email:
+    attivo: false
+    utente: ""
+    password: ""
+    destinatari: []
+# esempio: soglia personale diversa
+# analisi:
+#   soglia_occasione_pct: -20

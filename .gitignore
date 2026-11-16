@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+data/*.sqlite
+data/log/
+data/pagine/
+output/
+.pytest_cache/
+config.local.yaml
+*.local.yaml
+data/excel_input/
+dist/

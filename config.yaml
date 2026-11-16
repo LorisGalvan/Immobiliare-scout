@@ -1,0 +1,156 @@
+# =====================================================================
+#  SCOUT IMMOBILI - configurazione
+#  Tutti i percorsi sono relativi alla cartella del progetto.
+# =====================================================================
+
+territorio:
+  nome: Verona                 # usato per geocoding e nomi file
+  comune: Verona               # comune per URL di ricerca e geocoding
+  provincia: VR
+  # Slug usati dai siti per le ricerche "per comune"
+  slug_immobiliare: verona     # https://www.immobiliare.it/vendita-case/verona/
+  subito_regione: veneto
+  subito_provincia: verona
+  subito_comune: verona        # https://www.subito.it/annunci-veneto/vendita/appartamenti/verona/verona/
+  idealista_slug: verona-verona
+
+microzone:
+  file: data/zone/verona.geojson   # poligoni (importati dagli Excel o generati da OSM)
+  # Se un annuncio cade fuori da tutti i poligoni ma entro questa distanza (metri)
+  # dal poligono più vicino, viene assegnato a quello (utile per annunci sul confine).
+  tolleranza_confine_m: 60
+
+database: data/scout.sqlite
+cartella_output: output
+
+# ---------------------------------------------------------------------
+#  SCRAPING
+# ---------------------------------------------------------------------
+scraping:
+  user_agent: "Mozilla/5.0 (compatible; scout-immobili/1.0; uso personale)"
+  pausa_min_s: 6          # pausa casuale tra due richieste (ritmo lento)
+  pausa_max_s: 14
+  max_tentativi: 4        # retry con backoff esponenziale
+  backoff_base_s: 20
+  timeout_s: 30
+  # Se un sito restituisce blocchi (403/429/captcha) per N volte di fila
+  # lo scraping di quel sito si ferma per questa esecuzione.
+  stop_dopo_blocchi: 3
+  rispetta_robots_txt: true
+  # "comune": una ricerca su tutto il comune (meno richieste)
+  # "microzone": una ricerca per ogni poligono (più precisa, più richieste)
+  modalita: comune
+  max_pagine: 40
+  filtri:
+    prezzo_min: 30000
+    prezzo_max: 1500000
+    mq_min: 20
+  siti:
+    immobiliare: true
+    subito: true
+    idealista: false       # attivare in fase 2 (blocchi anti-bot frequenti)
+  # Dettaglio annuncio (descrizione completa, data, ascensore...) solo per
+  # occasioni e candidati frazionamento, per limitare le richieste.
+  scarica_dettaglio: true
+  max_dettagli_per_run: 40
+
+geocoding:
+  attivo: true
+  servizio: nominatim
+  pausa_s: 1.1            # policy Nominatim: max 1 richiesta/secondo
+
+# ---------------------------------------------------------------------
+#  PULIZIA DATI
+# ---------------------------------------------------------------------
+pulizia:
+  mq_min: 18
+  mq_max: 1000
+  prezzo_mq_min: 300       # sotto: dato dubbio (asta, nuda proprietà, errore)
+  prezzo_mq_max: 15000
+  parole_escludi:          # annunci scartati se il titolo/descrizione contiene...
+    - nuda proprietà
+    - asta giudiziaria
+    - all'asta
+    - multiproprietà
+    - posto auto
+    - box auto
+  parole_dubbie:           # tenuti ma segnalati
+    - asta
+    - affittato
+    - a reddito
+    - usufrutto
+    - rent to buy
+  doppioni:
+    tolleranza_mq: 3
+    tolleranza_prezzo_pct: 3
+    distanza_max_m: 150
+
+# ---------------------------------------------------------------------
+#  ANALISI
+# ---------------------------------------------------------------------
+analisi:
+  fasce_mq:                # [min, max) - etichetta come nei tuoi Excel
+    - [30, 50, "30/50"]
+    - [50, 70, "50/70"]
+    - [70, 100, "70/100"]
+    - [100, 10000, "100+"]
+  min_campione: 3          # sotto questo numero la mediana della fascia non è affidabile
+  # Con campione scarso si usa la mediana di tutta la microzona (tutte le fasce)
+  fallback_mediana_zona: true
+  includi_storico_giorni: 180   # annunci rimossi negli ultimi N giorni entrano nella mediana
+  soglia_occasione_pct: -15     # scostamento <= -15% => Occasione
+  correzioni:
+    attive: true
+    # coefficienti moltiplicativi: valore "normalizzato" = €/mq / coefficiente
+    piano_terra: 0.93
+    piano_alto_senza_ascensore: 0.92   # dal 3° piano in su senza ascensore
+    attico: 1.08
+    stato:
+      nuovo: 1.12
+      ottimo: 1.05
+      buono: 1.00
+      da_ristrutturare: 0.80
+  omi:
+    attivo: false
+    file_valori: data/omi/QI_VALORI.csv       # CSV scaricato da Agenzia Entrate
+    file_zone: data/omi/zone_omi.geojson      # opzionale: poligoni zone OMI
+    tipologia: Abitazioni civili
+    # in alternativa ai poligoni: microzona -> codice zona OMI
+    mappa_microzone: {}
+    #  "Borgo Trento m1": C12
+
+# ---------------------------------------------------------------------
+#  FRAZIONAMENTO
+# ---------------------------------------------------------------------
+frazionamento:
+  attivo: true
+  mq_min: 100              # soglia immobile "grande"
+  mq_unita_target: 45      # superficie di ogni unità ricavata
+  perdita_superficie_pct: 8   # muri, ingressi, disimpegni persi nel frazionamento
+  fascia_riferimento: "30/50"  # fascia di cui usare la mediana €/mq
+  sconto_prudenziale_pct: 5    # riduzione del valore post-frazionamento
+  costi:
+    lavori_mq: 650             # €/mq ristrutturazione su tutta la superficie
+    impianti_per_unita: 9000   # nuovi contatori, caldaie, allacci
+    oneri_per_unita: 3500      # oneri comunali, SCIA, accatastamento
+    spese_tecniche_pct: 8      # progettista/DL sul totale lavori
+    acquisto_pct: 4            # notaio + imposte su prezzo acquisto
+    vendita_pct: 3             # provvigioni di vendita sul ricavato
+  margine_min_pct: 10          # sotto questo il candidato non va nel foglio
+
+# ---------------------------------------------------------------------
+#  ALERT
+# ---------------------------------------------------------------------
+alert:
+  telegram:
+    attivo: false
+    token: ""        # oppure variabile d'ambiente SCOUT_TELEGRAM_TOKEN
+    chat_id: ""      # oppure SCOUT_TELEGRAM_CHAT_ID
+  email:
+    attivo: false
+    smtp_host: smtp.gmail.com
+    smtp_port: 587
+    utente: ""
+    password: ""     # oppure SCOUT_SMTP_PASSWORD (per Gmail: password per le app)
+    destinatari: []
+  includi_frazionabili: true
