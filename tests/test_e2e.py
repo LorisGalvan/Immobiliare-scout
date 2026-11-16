@@ -94,3 +94,25 @@ def test_pipeline(tmp_path):
     assert ws["A5"].value == "VIA" and ws["B5"].value == "MQ 30/50" and ws["E5"].value == "%SCOSTAMENTO"
     assert "vrt=" in ws["B1"].value and "shape=" in ws["B2"].value
     assert Path(r["mappa"]).stat().st_size > 10000
+
+
+def test_campione_fascia_usato(tmp_path):
+    """Regressione: con campione sufficiente il riferimento è la fascia, non la zona intera."""
+    cfg = _cfg(tmp_path)
+    zone = MicrozoneSet.load(cfg["microzone"]["file"])
+    st = Storage(cfg["database"])
+    ingest(cfg, st, _annunci(zone, random.Random(42)), zone, "immobiliare", True)
+    df = analizza_e_esporta(cfg, st, zone, alert=False)["df"]
+    z = df[df["microzona"] == zone.zone[0].nome]
+    assert (z["base_confronto"].str.startswith("fascia")).mean() > 0.8
+
+
+def test_giorni_online(tmp_path):
+    cfg = _cfg(tmp_path)
+    zone = MicrozoneSet.load(cfg["microzone"]["file"])
+    st = Storage(cfg["database"])
+    ingest(cfg, st, _annunci(zone, random.Random(42)), zone, "immobiliare", True)
+    st.conn.execute("UPDATE annunci SET first_seen='2020-01-01'")
+    st.commit()
+    df = analizza_e_esporta(cfg, st, zone, alert=False)["df"]
+    assert df["giorni_online"].notna().all() and (df["giorni_online"] > 300).all()

@@ -77,7 +77,7 @@ def prepara(storage: Storage, cfg: dict) -> pd.DataFrame:
         unisci_doppioni([l for l in tenuti if l.uid not in attivi_uid], cfg)
     rep_df = pd.DataFrame([{**l.to_dict(), "flags": l.flags, "doppioni": l.doppioni} for l in reps])
     meta = df.set_index("uid")[["first_seen", "last_seen", "attivo", "removed_at", "prezzo_iniziale",
-                                "n", "pmin", "pmax"]]
+                                "n_prezzi", "pmin", "pmax"]]
     rep_df = rep_df.join(meta, on="uid")
     return rep_df
 
@@ -100,7 +100,8 @@ def analizza(df: pd.DataFrame, cfg: dict, omi: "OMI | None" = None) -> tuple[pd.
     def giorni(r):
         try:
             start = dt.date.fromisoformat(str(r["first_seen"])[:10])
-            end = dt.date.fromisoformat(str(r["removed_at"])[:10]) if r.get("removed_at") else today
+            rem = r.get("removed_at")
+            end = dt.date.fromisoformat(str(rem)[:10]) if isinstance(rem, str) and rem else today
             return (end - start).days
         except (ValueError, TypeError):
             return None
@@ -121,6 +122,12 @@ def analizza(df: pd.DataFrame, cfg: dict, omi: "OMI | None" = None) -> tuple[pd.
 
     usa_norm = corr.get("attive", False)
     fallback = a.get("fallback_mediana_zona", True)
+    # fattore fascia: quanto il €/mq della fascia si discosta dal totale, misurato su tutto il
+    # territorio (le unità piccole costano di più al mq). Serve a riscalare la mediana di zona
+    # quando la fascia ha pochi annunci, altrimenti i grandi sembrerebbero tutti sottoprezzo.
+    col = "prezzo_mq_norm" if corr.get("attive", False) else "prezzo_mq"
+    tot = zonate[col].median() if len(zonate) else np.nan
+    fattore_fascia = (zonate.groupby("fascia")[col].median() / tot).to_dict() if len(zonate) else {}
 
     def riferimento(r):
         if pd.isna(r.get("microzona")):
@@ -129,8 +136,10 @@ def analizza(df: pd.DataFrame, cfg: dict, omi: "OMI | None" = None) -> tuple[pd.
         if n >= min_n:
             return (r["mediana_mq_norm"] if usa_norm else r["mediana_mq"]), f"fascia (n={int(n)})"
         if fallback and (r.get("n_zona_z") or 0) >= min_n:
-            return (r["mediana_zona_norm_z"] if usa_norm else r["mediana_zona_z"]), \
-                f"zona intera (fascia n={int(n)})"
+            f = fattore_fascia.get(r.get("fascia"), 1.0)
+            f = 1.0 if pd.isna(f) else f
+            base = r["mediana_zona_norm_z"] if usa_norm else r["mediana_zona_z"]
+            return base * f, f"zona intera x fattore fascia {f:.2f} (fascia n={int(n)})"
         return np.nan, f"campione scarso (n={int(n)})"
 
     ref = df.apply(riferimento, axis=1, result_type="expand")

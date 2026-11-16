@@ -118,7 +118,7 @@ class Storage:
         df = pd.read_sql_query("SELECT * FROM annunci", self.conn)
         if df.empty:
             return df
-        storia = pd.read_sql_query("SELECT uid, COUNT(*) n, MIN(prezzo) pmin, MAX(prezzo) pmax FROM prezzi GROUP BY uid",
+        storia = pd.read_sql_query("SELECT uid, COUNT(*) n_prezzi, MIN(prezzo) pmin, MAX(prezzo) pmax FROM prezzi GROUP BY uid",
                                    self.conn)
         df = df.merge(storia, on="uid", how="left")
         df["ascensore"] = df["ascensore"].map({1: True, 0: False})
