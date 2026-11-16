@@ -25,6 +25,17 @@ Database e login su **Supabase**, sito su **Netlify** (piani gratuiti). Guida pa
 
 ## 1. Installazione
 
+### Windows, senza comandi (consigliato)
+
+1. Su GitHub: pulsante verde **Code → Download ZIP**, poi estrai lo ZIP (es. in `Documenti\scout_immobili`).
+2. Doppio clic su **`INSTALLA.bat`**: installa Python se manca, le librerie, e apre il Blocco note per
+   incollare la chiave *secret* di Supabase.
+3. Doppio clic su **`AVVIA.bat`**: raccolta annunci, analisi, Excel, mappa e pubblicazione sul sito.
+
+Per l'esecuzione automatica ogni mattina vedi il paragrafo 9 (`scripts\run_giornaliero.bat`).
+
+### Da riga di comando
+
 Serve Python 3.10 o superiore.
 
 ```bash
@@ -271,7 +282,7 @@ python -m scout run          # scrape + analisi + Excel + mappa + alert
 ```
 
 **Windows** – Utilità di pianificazione → Crea attività di base → giornaliera (es. 7:30) →
-Avvia programma: `scripts\run_giornaliero.bat` (modifica il percorso dentro il file).
+Avvia programma: `scripts\run_giornaliero.bat` (nessun percorso da modificare; il PC deve essere acceso).
 
 **Linux/Mac** – `crontab -e`:
 
