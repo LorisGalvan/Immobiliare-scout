@@ -21,14 +21,19 @@ log = logging.getLogger(__name__)
 
 def parse_html_file(path: Path) -> list[Listing]:
     html = path.read_text(encoding="utf-8", errors="ignore")
-    low = html[:300000].lower()
-    if "immobiliare.it" in low:
+    low = html.lower()
+    # sito di provenienza: quello citato più volte (le pagine iniziano spesso con centinaia di KB di CSS)
+    conteggi = {k: low.count(k) for k in ("immobiliare.it", "subito.it", "idealista")}
+    sito = max(conteggi, key=conteggi.get) if max(conteggi.values()) else None
+    if sito == "immobiliare.it":
         res, _ = immobiliare.parse_search_page(html)
-        if not res:   # pagina di dettaglio
-            res = []
-    elif "subito.it" in low:
+        if not res and ('"page":"/search-list"' in html or 'data-cy="search-map"' in html):
+            log.warning("%s: e' la ricerca con MAPPA salvata come 'solo HTML': gli annunci non sono nel file. "
+                        "Salvala come 'Pagina web completa' oppure usa l'elenco "
+                        "https://www.immobiliare.it/vendita-case/verona/", path.name)
+    elif sito == "subito.it":
         res, _ = subito.parse_search_page(html)
-    elif "idealista" in low:
+    elif sito == "idealista":
         res, _ = idealista.parse_search_page(html)
     else:
         res = []
