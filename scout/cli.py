@@ -68,6 +68,9 @@ def main(argv=None):
     p = sub.add_parser("run", help="esecuzione giornaliera completa: scrape + analisi + alert")
     p.add_argument("--siti")
 
+    p = sub.add_parser("esporta-json", help="esporta i risultati in JSON (dati demo per il sito web)")
+    p.add_argument("file", nargs="?", default="web/public/demo.json")
+
     sub.add_parser("stato", help="statistiche del database")
     p = sub.add_parser("test-alert", help="invia un messaggio di prova su Telegram/email")
 
@@ -173,6 +176,8 @@ def main(argv=None):
     elif a.cmd == "analizza":
         st = Storage(resolve(cfg, cfg["database"]))
         r = analizza_e_esporta(cfg, st, carica_zone(cfg), alert=not a.no_alert, dry_run_alert=a.prova_alert)
+        if r.get("pubblicato"):
+            print("Risultati pubblicati sul sito (Supabase).")
         if a.prova_alert:
             print("\n\n".join(r["segnalazioni"]) or "nessuna nuova segnalazione")
         print(f"Excel: {r['excel']}\nMappa: {r['mappa']}\nOccasioni: {r['occasioni']} - Frazionabili: {r['frazionabili']}")
@@ -183,6 +188,13 @@ def main(argv=None):
         scrape_tutto(cfg, st, zone, a.siti.split(",") if a.siti else None)
         r = analizza_e_esporta(cfg, st, zone)
         print(f"Excel: {r['excel']}\nMappa: {r['mappa']}\nOccasioni: {r['occasioni']} - Frazionabili: {r['frazionabili']}")
+
+    elif a.cmd == "esporta-json":
+        from .supabase_sync import costruisci_payload, esporta_json
+        st = Storage(resolve(cfg, cfg["database"]))
+        zone = carica_zone(cfg)
+        r = analizza_e_esporta(cfg, st, zone, alert=False)
+        print(esporta_json(a.file, costruisci_payload(cfg, st, r, zone, "demo")))
 
     elif a.cmd == "stato":
         st = Storage(resolve(cfg, cfg["database"]))

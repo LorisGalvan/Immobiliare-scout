@@ -120,11 +120,19 @@ def analizza_e_esporta(cfg, storage: Storage, zone: MicrozoneSet, alert: bool = 
     html = mappa_analisi(out / f"mappa_{nome}_{stamp}.html", zone, df, med, fraz,
                          f"Scout immobili {cfg['territorio']['nome']} - {stamp}")
     testi = notifica(cfg, storage, df, fraz, dry_run=dry_run_alert) if alert else []
+    risultato = {"excel": xlsx, "df": df, "med": med, "fraz": fraz}
+    pubblicato = False
+    if get(cfg, "supabase.attivo", False):
+        from .supabase_sync import pubblica
+        try:
+            pubblicato = pubblica(cfg, storage, risultato, zone)
+        except Exception as e:  # noqa: BLE001 - il report locale resta valido
+            log.error("pubblicazione su Supabase fallita: %s", e)
     n_occ = int(df["occasione"].sum()) if not df.empty else 0
     log.info("Excel: %s | Mappa: %s | occasioni: %d | frazionabili: %d | segnalazioni: %d",
              xlsx, html, n_occ, len(fraz), len(testi))
     return {"excel": xlsx, "mappa": html, "occasioni": n_occ, "frazionabili": len(fraz),
-            "segnalazioni": testi, "df": df, "med": med, "fraz": fraz}
+            "segnalazioni": testi, "df": df, "med": med, "fraz": fraz, "pubblicato": pubblicato}
 
 
 __all__ = ["Path", "carica_zone", "ingest", "scrape_tutto", "analizza_e_esporta"]

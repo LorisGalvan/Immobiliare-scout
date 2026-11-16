@@ -1,0 +1,16 @@
+# Deploy del sito su Netlify (collega il repository GitHub, nessun'altra impostazione necessaria
+# oltre alle variabili VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY).
+[build]
+  base = "web"
+  command = "npm ci && npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Content-Type-Options = "nosniff"

@@ -15,6 +15,12 @@ Il bot:
 9. genera una **mappa HTML** con le microzone colorate per €/mq e le occasioni evidenziate;
 10. valuta il **frazionamento** degli immobili grandi.
 
+## Sito web per il team
+
+I risultati si possono consultare online, con login, da browser e telefono (occasioni, mappa, microzone,
+frazionabili, ribassi, storico prezzi, valutazioni e note condivise del team).
+Database e login su **Supabase**, sito su **Netlify** (piani gratuiti). Guida passo-passo: **[SITO_WEB.md](SITO_WEB.md)**.
+
 ---
 
 ## 1. Installazione
@@ -299,6 +305,9 @@ scout/
   export_excel.py     Excel di output
   mappa.py            mappe folium ed editor microzone
   alerts.py           Telegram / email
+  supabase_sync.py    pubblicazione dei risultati per il sito web
+supabase/schema.sql   tabelle e permessi Supabase
+web/                  sito web (React + Vite + Tailwind + Leaflet)
 tests/                test automatici (python -m pytest)
 ```
 

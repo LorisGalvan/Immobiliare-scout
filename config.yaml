@@ -139,6 +139,16 @@ frazionamento:
   margine_min_pct: 10          # sotto questo il candidato non va nel foglio
 
 # ---------------------------------------------------------------------
+#  SITO WEB (Supabase)
+# ---------------------------------------------------------------------
+supabase:
+  attivo: false
+  url: ""            # https://<progetto>.supabase.co  (Project Settings -> API)
+  # La chiave service_role va SOLO in config.local.yaml o nella variabile
+  # d'ambiente SCOUT_SUPABASE_SERVICE_KEY, mai qui (questo file è su GitHub).
+  service_key: ""
+
+# ---------------------------------------------------------------------
 #  ALERT
 # ---------------------------------------------------------------------
 alert:

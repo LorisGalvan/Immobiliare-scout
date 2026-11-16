@@ -13,3 +13,9 @@ alert:
 # esempio: soglia personale diversa
 # analisi:
 #   soglia_occasione_pct: -20
+
+# Solo sul PC che esegue il bot e pubblica sul sito:
+# supabase:
+#   attivo: true
+#   url: "https://xxxxxxxx.supabase.co"
+#   service_key: "eyJ..."     # Project Settings -> API -> service_role (segreta!)
