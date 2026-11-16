@@ -46,7 +46,7 @@ scraping:
     prezzo_max: 1500000
     mq_min: 20
   siti:
-    immobiliare: true
+    immobiliare: false     # blocca le richieste automatiche (403): usare le pagine salvate in pagine_salvate/
     subito: true
     idealista: false       # attivare in fase 2 (blocchi anti-bot frequenti)
   # Dettaglio annuncio (descrizione completa, data, ascensore...) solo per
