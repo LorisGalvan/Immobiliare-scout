@@ -1,5 +1,8 @@
 # Sito web Scout Immobili — messa online
 
+![Panoramica (modalità demo)](docs/anteprima_panoramica.png)
+![Microzona (modalità demo)](docs/anteprima_microzona.png)
+
 Il sito permette a tutto il team di consultare occasioni, microzone, mappa, frazionabili e ribassi
 da browser o telefono, con login, e di segnare lo stato di ogni annuncio (da vedere, interessante,
 visitato, in trattativa, scartato) con note condivise.
