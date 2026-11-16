@@ -54,6 +54,8 @@ def main(argv=None):
 
     p = sub.add_parser("importa-html", help="importa pagine di ricerca salvate dal browser")
     p.add_argument("cartella")
+    p.add_argument("--archivia", action="store_true",
+                   help="sposta i file letti in importate/<data>/ (usato da AVVIA.bat)")
     p.add_argument("--fonte-completa", action="store_true",
                    help="le pagine coprono tutta la ricerca: segna come rimossi gli annunci non presenti")
 
@@ -161,7 +163,10 @@ def main(argv=None):
     elif a.cmd == "importa-html":
         from .importa import importa_html
         st = Storage(resolve(cfg, cfg["database"]))
-        res = importa_html(a.cartella)
+        if not Path(a.cartella).exists():
+            Path(a.cartella).mkdir(parents=True)
+        res = importa_html(a.cartella, archivia=a.archivia)
+        log.info("pagine salvate: %d annunci importati", len(res))
         per_fonte = {}
         for l in res:
             per_fonte.setdefault(l.source, []).append(l)

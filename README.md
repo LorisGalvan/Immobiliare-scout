@@ -162,8 +162,10 @@ python -m scout scrape --siti immobiliare     # un solo sito
 ### 4.2 Semi-manuale (se un sito blocca, e per Idealista)
 
 1. Apri nel browser la ricerca (puoi usare i link in riga 1-3 dei fogli microzona dell'Excel generato).
-2. Salva ogni pagina dei risultati con **Ctrl+S** ("Pagina web, solo HTML") in una cartella, es. `data/pagine/2026-11-16/`.
-3. Importa:
+2. Salva ogni pagina dei risultati con **Ctrl+S** ("Pagina web, solo HTML") nella cartella **`pagine_salvate`**
+   del progetto. Al successivo `AVVIA.bat` vengono importate in automatico e spostate in `pagine_salvate/importate/<data>/`
+   (quelle illeggibili in `pagine_salvate/non_riconosciute/`).
+3. Oppure, da riga di comando, importa una cartella qualsiasi:
 
 ```bash
 python -m scout importa-html data/pagine/2026-11-16

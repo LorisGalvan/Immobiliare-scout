@@ -13,6 +13,10 @@ findstr /c:"INCOLLA_QUI_LA_CHIAVE_SECRET" config.local.yaml >nul 2>&1 && (
   echo Senza chiave il bot funziona ma non pubblica sul sito.
   echo.
 )
+if not exist "pagine_salvate" mkdir "pagine_salvate"
+echo  ===== 0/2 Pagine salvate dal browser (cartella pagine_salvate) =====
+".venv\Scripts\python.exe" -m scout importa-html pagine_salvate --archivia || goto errore
+echo.
 echo  ===== 1/2 Raccolta annunci (lenta di proposito: 10-30 minuti) =====
 ".venv\Scripts\python.exe" -c "import numpy.random, pandas, shapely, lxml" 2>nul || goto bloccato
 ".venv\Scripts\python.exe" -m scout scrape || goto errore

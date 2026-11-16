@@ -36,10 +36,52 @@ def parse_html_file(path: Path) -> list[Listing]:
     return res
 
 
-def importa_html(cartella: str | Path) -> list[Listing]:
+ESCLUSE = {"importate", "non_riconosciute"}
+
+
+def pagine_da_importare(cartella: str | Path) -> list[Path]:
+    """File .htm/.html nella cartella, escluse le sottocartelle d'archivio e le
+    cartelle '<nome>_files' create da "Salva pagina web completa"."""
+    base = Path(cartella)
     out = []
-    for p in sorted(Path(cartella).glob("**/*.htm*")):
-        out += parse_html_file(p)
+    for p in sorted(base.glob("**/*.htm*")):
+        rel = p.relative_to(base).parts[:-1]
+        if any(x in ESCLUSE or x.endswith("_files") for x in rel):
+            continue
+        out.append(p)
+    return out
+
+
+def importa_html(cartella: str | Path, archivia: bool = False) -> list[Listing]:
+    """Importa le pagine salvate. Con archivia=True sposta i file letti in
+    'importate/<data>/' e quelli non riconosciuti in 'non_riconosciute/'."""
+    import datetime as dt
+    import shutil
+
+    base = Path(cartella)
+    out = []
+    oggi = dt.date.today().isoformat()
+    for p in pagine_da_importare(base):
+        try:
+            res = parse_html_file(p)
+        except Exception as e:  # noqa: BLE001 - un file rovinato non deve fermare gli altri
+            log.warning("%s: errore di lettura (%s)", p.name, e)
+            res = []
+        out += res
+        if archivia:
+            dest = base / ("importate/" + oggi if res else "non_riconosciute")
+            dest.mkdir(parents=True, exist_ok=True)
+            target = dest / p.name
+            k = 2
+            while target.exists():
+                target = dest / f"{p.stem}_{k}{p.suffix}"
+                k += 1
+            shutil.move(str(p), target)
+            cartella_files = p.with_name(p.stem + "_files")
+            if cartella_files.is_dir():
+                shutil.move(str(cartella_files), dest / (target.stem + "_files"))
+            if not res:
+                log.warning("%s: nessun annuncio riconosciuto (spostato in non_riconosciute/)", p.name)
     return out
 
 

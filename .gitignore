@@ -10,3 +10,5 @@ config.local.yaml
 *.local.yaml
 data/excel_input/
 dist/
+pagine_salvate/*
+!pagine_salvate/LEGGIMI.txt
