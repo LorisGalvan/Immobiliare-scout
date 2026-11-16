@@ -112,21 +112,99 @@ def parse_real_estate(re_: dict, seo: dict | None = None) -> Listing | None:
     )
 
 
+def _json_embedded(html: str):
+    """Oggetti JSON con "realEstate" sparsi nella pagina, in qualsiasi formato:
+    __NEXT_DATA__, flusso React Server Components (self.__next_f.push), JSON
+    con escape HTML. Usa raw_decode a partire da ogni '{"realEstate":'."""
+    import html as _html
+    import json as _json
+
+    testi = [html]
+    # payload RSC: self.__next_f.push([1,"...stringa JSON con escape..."])
+    rsc = re.findall(r'self\.__next_f\.push\(\[\d+,\s*("(?:[^"\\]|\\.)*")\]\)', html)
+    if rsc:
+        try:
+            testi.append("".join(_json.loads(x) for x in rsc))
+        except ValueError:
+            pass
+    if "&quot;realEstate&quot;" in html:
+        testi.append(_html.unescape(html))
+    dec = _json.JSONDecoder()
+    for t in testi:
+        for m in re.finditer(r'\{"realEstate"\s*:', t):
+            try:
+                obj, _ = dec.raw_decode(t, m.start())
+                yield obj
+            except ValueError:
+                continue
+        for m in re.finditer(r'"maxPages"\s*:\s*(\d+)', t):
+            yield {"maxPages": int(m.group(1))}
+
+
+def _da_html(html: str) -> list[Listing]:
+    """Ultima risorsa: legge le schede dall'HTML visibile (senza coordinate)."""
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, "lxml")
+    out, seen = [], set()
+    for a in soup.find_all("a", href=re.compile(r"/annunci/(\d+)")):
+        sid = re.search(r"/annunci/(\d+)", a["href"]).group(1)
+        if sid in seen:
+            continue
+        card = a
+        for _ in range(8):   # risale fino al contenitore della scheda
+            if card.parent is None:
+                break
+            card = card.parent
+            if card.name in ("li", "article") or "€" in card.get_text():
+                if card.name in ("li", "article"):
+                    break
+        testo = card.get_text(" ", strip=True)
+        prezzo = num(re.search(r"€\s*[\d\.]+", testo).group(0)) if re.search(r"€\s*[\d\.]+", testo) else None
+        mq = re.search(r"(\d+(?:[\.,]\d+)?)\s*m²", testo)
+        if not prezzo or not mq:
+            continue
+        seen.add(sid)
+        titolo = a.get("title") or a.get_text(" ", strip=True)
+        bagni = re.search(r"(\d+)\s*bagn", testo, re.I)
+        locali = re.search(r"(\d+)\+?\s*local", testo, re.I)
+        pia = re.search(r"(piano\s+\w+|\b\d+°\s*piano|piano terra|rialzato|attico)", testo, re.I)
+        from ..geo.geocode import estrai_indirizzo
+        indirizzo = estrai_indirizzo(titolo) or estrai_indirizzo(testo)
+        out.append(Listing(
+            source=SOURCE, source_id=sid,
+            url=a["href"] if a["href"].startswith("http") else BASE + a["href"],
+            titolo=titolo, prezzo=prezzo, mq=num(mq.group(1)),
+            bagni=int(bagni.group(1)) if bagni else None,
+            locali=int(locali.group(1)) if locali else None,
+            piano=piano(pia.group(1)) if pia else None,
+            indirizzo=indirizzo, coord_precise=False,
+        ))
+    return out
+
+
 def parse_search_page(html: str) -> tuple[list[Listing], int | None]:
     """Restituisce (annunci, numero_pagine_totali)."""
-    data = next_data(html)
-    if not data:
-        return [], None
     out, seen, max_pages = [], set(), None
-    for d in walk(data):
-        if "maxPages" in d and isinstance(d.get("maxPages"), int):
-            max_pages = max(max_pages or 0, d["maxPages"])
-        re_ = d.get("realEstate")
-        if isinstance(re_, dict) and "properties" in re_:
-            l = parse_real_estate(re_, d.get("seo"))
-            if l and l.source_id not in seen:
-                seen.add(l.source_id)
-                out.append(l)
+    sorgenti = []
+    data = next_data(html)
+    if data:
+        sorgenti.append(walk(data))
+    sorgenti.append(_json_embedded(html))
+    for it in sorgenti:
+        for d in it:
+            if not isinstance(d, dict):
+                continue
+            if "maxPages" in d and isinstance(d.get("maxPages"), int):
+                max_pages = max(max_pages or 0, d["maxPages"])
+            re_ = d.get("realEstate")
+            if isinstance(re_, dict) and "properties" in re_:
+                l = parse_real_estate(re_, d.get("seo"))
+                if l and l.source_id not in seen:
+                    seen.add(l.source_id)
+                    out.append(l)
+    if not out:
+        out = _da_html(html)
     return out, max_pages
 
 

@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 def parse_html_file(path: Path) -> list[Listing]:
     html = path.read_text(encoding="utf-8", errors="ignore")
     low = html[:300000].lower()
-    if "immobiliare.it" in low and "realestate" in low:
+    if "immobiliare.it" in low:
         res, _ = immobiliare.parse_search_page(html)
         if not res:   # pagina di dettaglio
             res = []
