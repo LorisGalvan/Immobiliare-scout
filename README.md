@@ -22,12 +22,16 @@ Il bot:
 Serve Python 3.10 o superiore.
 
 ```bash
+git clone https://github.com/LorisGalvan/Immobiliare-scout.git scout_immobili
 cd scout_immobili
 python -m venv .venv
 # Windows:  .venv\Scripts\activate
 source .venv/bin/activate
 pip install -r requirements.txt
+cp config.local.example.yaml config.local.yaml   # Windows: copy ...  poi inserisci i tuoi dati
 ```
+
+Per aggiornare alla versione più recente: `git pull`.
 
 Tutti i comandi si lanciano dalla cartella del progetto con `python -m scout <comando>`.
 `python -m scout --help` mostra l'elenco; `python -m scout <comando> --help` mostra le opzioni di un comando.
