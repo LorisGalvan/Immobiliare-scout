@@ -6,7 +6,7 @@ import re
 
 from .models import Listing
 
-TIPOLOGIE_NO = ("box", "garage", "posto auto", "terreno", "ufficio", "negozio", "capannone",
+TIPOLOGIE_NO = ("progetto", "box", "garage", "posto auto", "terreno", "ufficio", "negozio", "capannone",
                 "magazzino", "laboratorio", "locale commerciale")
 
 

@@ -85,10 +85,19 @@ def parse_real_estate(re_: dict, seo: dict | None = None) -> Listing | None:
     loc = p.get("location") or {}
     floor = p.get("floor") or {}
     piano_raw = floor.get("abbreviation") or floor.get("value") if isinstance(floor, dict) else floor
-    feats = _features_text(p)
+    # featureList: [{"type": "elevator", "label": "No Ascensore", "compactLabel": "No"}, ...]
+    fl = {f.get("type"): f for f in (p.get("featureList") or []) if isinstance(f, dict)}
     asc = si_no(p.get("elevator"))
-    if asc is None and feats:
-        asc = True if "ascensore" in feats else None
+    if asc is None and "elevator" in fl:
+        cl = str(fl["elevator"].get("compactLabel") or fl["elevator"].get("label") or "").strip().lower()
+        asc = False if cl.startswith("no") else True if cl.startswith(("s", "ascensore")) else None
+    if asc is None:
+        feats = _features_text(p)
+        if re.search(r"(?<!no )\bascensore\b", feats) and "no ascensore" not in feats and "senza ascensore" not in feats:
+            asc = True
+    if not piano_raw and "floor" in fl:
+        piano_raw = fl["floor"].get("compactLabel") or fl["floor"].get("label")
+    condizione = p.get("condition") or p.get("ga4Condition")
     agenzia, privato = _agency(re_)
     url = (seo or {}).get("url") or f"{BASE}/annunci/{rid}/"
     indirizzo = loc.get("address")
@@ -102,12 +111,13 @@ def parse_real_estate(re_: dict, seo: dict | None = None) -> Listing | None:
         prezzo=prezzo, mq=mq, piano=piano(piano_raw), ascensore=asc,
         bagni=int(num(p.get("bathrooms"))) if num(p.get("bathrooms")) else None,
         locali=int(num(p.get("rooms"))) if num(p.get("rooms")) else None,
-        stato=stato(p.get("condition")), stato_raw=p.get("condition"),
+        stato=stato(condizione), stato_raw=condizione,
         agenzia=agenzia, privato=privato,
         indirizzo=indirizzo,
         lat=num(loc.get("latitude")), lon=num(loc.get("longitude")),
         coord_precise=bool((loc.get("marker") or "") != "zone") if loc else False,
-        tipologia=(p.get("typologyGA4Translation") or (re_.get("typology") or {}).get("name")),
+        tipologia=("Progetto" if re_.get("isProjectLike") else
+                   (p.get("typologyGA4Translation") or (re_.get("typology") or {}).get("name"))),
         prezzo_ribassato_da=ribasso,
     )
 
