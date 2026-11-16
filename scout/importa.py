@@ -14,7 +14,7 @@ from pathlib import Path
 
 from .models import Listing
 from .normalize import num, piano, si_no, stato
-from .scrapers import idealista, immobiliare, subito
+from .scrapers import casa, idealista, immobiliare, subito
 
 log = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ def parse_html_file(path: Path) -> list[Listing]:
     html = path.read_text(encoding="utf-8", errors="ignore")
     low = html.lower()
     # sito di provenienza: quello citato più volte (le pagine iniziano spesso con centinaia di KB di CSS)
-    conteggi = {k: low.count(k) for k in ("immobiliare.it", "subito.it", "idealista")}
+    conteggi = {k: low.count(k) for k in ("immobiliare.it", "subito.it", "idealista", "casa.it")}
     sito = max(conteggi, key=conteggi.get) if max(conteggi.values()) else None
     if sito == "immobiliare.it":
         res, _ = immobiliare.parse_search_page(html)
@@ -35,6 +35,8 @@ def parse_html_file(path: Path) -> list[Listing]:
         res, _ = subito.parse_search_page(html)
     elif sito == "idealista":
         res, _ = idealista.parse_search_page(html)
+    elif sito == "casa.it":
+        res, _ = casa.parse_search_page(html)
     else:
         res = []
     log.info("%s: %d annunci", path.name, len(res))

@@ -45,4 +45,4 @@ def test_idealista():
 
 def test_importa_html_cartella():
     ls = importa_html(FIX)
-    assert {l.source for l in ls} == {"immobiliare", "subito", "idealista"}
+    assert {l.source for l in ls} == {"immobiliare", "subito", "idealista", "casa"}

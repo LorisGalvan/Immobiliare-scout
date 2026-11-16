@@ -30,7 +30,9 @@ def parse_search_page(html: str) -> tuple[list[Listing], bool]:
     for art in soup.select("article.item, article[data-element-id]"):
         sid = art.get("data-element-id") or art.get("data-adid")
         link = art.select_one("a.item-link")
-        if not sid and link:
+        if link is None:      # annunci "promossi" di altri comuni, senza link alla scheda
+            continue
+        if not sid:
             m = re.search(r"/immobile/(\d+)", link.get("href", ""))
             sid = m.group(1) if m else None
         if not sid:
@@ -55,7 +57,10 @@ def parse_search_page(html: str) -> tuple[list[Listing], bool]:
                     asc = False
         desc = art.select_one(".item-description")
         agenzia = art.select_one(".logo-branding img, .item-logo img")
-        m = re.search(r"\bin\s+(.+?)(?:,\s*[^,]+)?$", titolo)
+        from ..geo.geocode import estrai_indirizzo
+        pulito = re.sub(r"\bs\.?n\.?c\.?\b", "", titolo, flags=re.I)
+        m = re.search(r"\bin\s+(.+?)(?:,\s*[^,]+)?$", pulito)
+        indirizzo = estrai_indirizzo(pulito) or (m.group(1) if m else None)
         out.append(Listing(
             source=SOURCE, source_id=str(sid),
             url=BASE + link["href"] if link and link.get("href", "").startswith("/") else (link or {}).get("href", ""),
@@ -63,7 +68,7 @@ def parse_search_page(html: str) -> tuple[list[Listing], bool]:
             prezzo=prezzo, mq=mq, locali=locali, piano=piano(piano_raw), ascensore=asc,
             agenzia=agenzia.get("alt") if agenzia else None,
             privato=None if agenzia else None,
-            indirizzo=m.group(1) if m else None, coord_precise=False,
+            indirizzo=indirizzo, coord_precise=False,
         ))
     has_next = bool(soup.select_one(".pagination .next a, a.icon-arrow-right-after"))
     return out, has_next

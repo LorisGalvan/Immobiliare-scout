@@ -1,4 +1,4 @@
-Salva qui le pagine dei risultati di ricerca di Immobiliare.it (e Idealista) dal tuo browser:
+Salva qui le pagine dei risultati di ricerca di Immobiliare.it, Idealista e Casa.it dal tuo browser:
   Ctrl+S  ->  "Pagina web completa"  ->  questa cartella (usare l'ELENCO, non la mappa).
 Al prossimo AVVIA.bat vengono importate e spostate in "importate\<data>".
 Le pagine che il bot non riesce a leggere finiscono in "non_riconosciute": mandale a chi gestisce il bot.

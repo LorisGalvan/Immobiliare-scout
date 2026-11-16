@@ -27,6 +27,7 @@ export const FONTE: Record<string, string> = {
   immobiliare: "Immobiliare.it",
   subito: "Subito.it",
   idealista: "Idealista",
+  casa: "Casa.it",
   facebook: "Facebook",
   excel: "Storico Excel",
 };

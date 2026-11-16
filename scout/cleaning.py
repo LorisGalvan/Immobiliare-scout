@@ -6,7 +6,7 @@ import re
 
 from .models import Listing
 
-TIPOLOGIE_NO = ("progetto", "box", "garage", "posto auto", "terreno", "ufficio", "negozio", "capannone",
+TIPOLOGIE_NO = ("progetto", "asta", "box", "garage", "posto auto", "terreno", "ufficio", "negozio", "capannone",
                 "magazzino", "laboratorio", "locale commerciale")
 
 
@@ -79,7 +79,7 @@ def sono_doppioni(a: Listing, b: Listing, cfg: dict) -> bool:
     return False
 
 
-PRIORITA = {"immobiliare": 0, "idealista": 1, "subito": 2, "facebook": 3, "excel": 9}
+PRIORITA = {"immobiliare": 0, "idealista": 1, "casa": 2, "subito": 3, "facebook": 4, "excel": 9}
 
 
 def unisci_doppioni(listings: list[Listing], cfg: dict) -> list[Listing]:

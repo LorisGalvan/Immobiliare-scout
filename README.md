@@ -173,7 +173,10 @@ python -m scout scrape --siti immobiliare     # un solo sito
 python -m scout importa-html data/pagine/2026-11-16
 ```
 
-Il formato (Immobiliare, Subito, Idealista) viene riconosciuto in automatico.
+Il formato (Immobiliare, Idealista, Casa.it, Subito) viene riconosciuto in automatico. Indirizzi per la vista a elenco:
+`https://www.immobiliare.it/vendita-case/verona/?criterio=data&ordine=desc`,
+`https://www.idealista.it/vendita-case/verona-verona/?ordine=pubblicazione-desc`,
+`https://www.casa.it/vendita/residenziale/verona/?sortType=date_desc`.
 Aggiungi `--fonte-completa` solo se hai salvato **tutte** le pagine della ricerca (così il bot segna come rimossi gli annunci spariti).
 
 ### 4.3 Facebook Marketplace / annunci trovati a mano
