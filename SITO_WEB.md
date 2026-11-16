@@ -79,6 +79,11 @@ A ogni `git push` sul ramo `main` Netlify ripubblica il sito da solo.
 
 ## 4. Invitare il team
 
+> **Prima di invitare** controlla che in Supabase → *Authentication → URL Configuration* il *Site URL* sia
+> l'indirizzo del sito (`https://lorisgalvan.github.io/Immobiliare-scout/`) e non `http://localhost:3000`:
+> altrimenti il link dell'email apre "localhost – connessione negata". In quel caso salva l'indirizzo giusto,
+> elimina l'utente e rimanda l'invito.
+
 Supabase → **Authentication → Users → Add user → Send invitation**, una email per persona.
 Chi riceve l'invito clicca il link, arriva sul sito e sceglie la password. Da quel momento entra con email e password.
 Per togliere l'accesso: elimina l'utente dalla stessa pagina.
