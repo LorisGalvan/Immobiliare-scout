@@ -68,6 +68,12 @@ Per più territori basta eseguire il bot con ciascun config (`-c config_sgl.yaml
 
 A ogni `git push` sul ramo `main` Netlify ripubblica il sito da solo.
 
+> **In alternativa: GitHub Pages** (nessun altro account). Il workflow è già pronto in
+> `.github/workflows/sito.yml`. Serve un repository pubblico oppure GitHub Pro per i privati. Una tantum:
+> *Settings → Pages → Source: GitHub Actions*, poi *Settings → Secrets and variables → Actions → Variables →
+> New variable* `VITE_SUPABASE_ANON_KEY` = chiave publishable. Indirizzo del sito:
+> `https://lorisgalvan.github.io/Immobiliare-scout/` (da inserire in Supabase → URL Configuration).
+>
 > In alternativa a Netlify va bene anche Vercel o Cloudflare Pages: cartella `web`, comando
 > `npm run build`, cartella di output `dist`, stesse due variabili.
 
