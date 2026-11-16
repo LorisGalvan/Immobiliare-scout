@@ -115,7 +115,11 @@ class Supabase:
     def __init__(self, url: str, key: str, timeout: int = 60):
         self.url = url.rstrip("/")
         self.s = requests.Session()
-        self.s.headers.update({"apikey": key, "Authorization": f"Bearer {key}"})
+        self.s.headers.update({"apikey": key})
+        # le chiavi "legacy" sono JWT (eyJ...) e vanno anche in Authorization;
+        # le nuove chiavi segrete (sb_secret_...) vanno SOLO in apikey
+        if key.startswith("eyJ"):
+            self.s.headers["Authorization"] = f"Bearer {key}"
         self.timeout = timeout
 
     def upsert(self, table: str, rows: list[dict], on_conflict: str, batch: int = 500):

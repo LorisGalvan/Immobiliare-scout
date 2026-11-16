@@ -143,7 +143,7 @@ frazionamento:
 # ---------------------------------------------------------------------
 supabase:
   attivo: false
-  url: ""            # https://<progetto>.supabase.co  (Project Settings -> API)
+  url: "https://unpzkdkgnorvakiqllrb.supabase.co"
   # La chiave service_role va SOLO in config.local.yaml o nella variabile
   # d'ambiente SCOUT_SUPABASE_SERVICE_KEY, mai qui (questo file è su GitHub).
   service_key: ""
