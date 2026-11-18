@@ -96,6 +96,8 @@ aste_pvp:
   # servizio di ricerca usato dal sito del PVP (non documentato: se cambia, il bot lo dice nel log
   # e si salvano le pagine di ricerca dal browser in pagine_salvate/)
   api_url: "https://pvp.giustizia.it/ric-496b258c-986a1b71/ric-ms/ricerca/vendite"
+  tribunale: Verona     # il PVP filtra per tribunale: San Giovanni Lupatoto è del Tribunale di Verona
+  giorni_passati: 60    # aste già passate da più di 60 giorni: ignorate
   raggio_km: 0          # 0 = solo il comune del territorio
   per_pagina: 50
   max_pagine: 20
