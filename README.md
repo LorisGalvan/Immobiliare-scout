@@ -161,6 +161,20 @@ python -m scout scrape --siti immobiliare     # un solo sito
 - Se manca il campo mq, il bot li cerca nel testo (`pulizia.mq_dal_testo`), ignorando giardini, cantine, terrazzi e box.
 - Per Immobiliare scarica la scheda di dettaglio (descrizione completa, data, ascensore) solo per i candidati più interessanti (grandi o con €/mq basso), max `max_dettagli_per_run`.
 
+### 4.1b Immobiliare tramite Apify (a pagamento)
+
+Immobiliare blocca il bot. Con un account [Apify](https://apify.com) il bot fa girare uno scraper già pronto
+sui server di Apify (circa 1 $ ogni 1.000 annunci) e importa i risultati come annunci Immobiliare.
+1. Su console.apify.com → *Settings → API & Integrations* copia il token.
+2. In `config.local.yaml` aggiungi:
+   ```yaml
+   apify:
+     token: "apify_api_..."
+   ```
+3. Doppio clic su `PROVA_APIFY.bat`: giro di prova da 200 annunci (`apify.max_annunci` in `config.yaml`).
+4. Se il risultato va bene, metti `max_annunci: 4000` e `scraping.siti.immobiliare_apify: true`:
+   da quel momento `AVVIA.bat` lo usa a ogni giro.
+
 ### 4.2 Semi-manuale (se un sito blocca, e per Idealista)
 
 1. Apri nel browser la ricerca (puoi usare i link in riga 1-3 dei fogli microzona dell'Excel generato).
