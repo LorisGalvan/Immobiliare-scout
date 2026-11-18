@@ -246,6 +246,33 @@ def corpo_ricerca(cfg: dict, pagina: int) -> dict:
     return corpo
 
 
+def _salva_risposta(cfg: dict, pagina: int, data) -> None:
+    """Copia della risposta in data/log/pvp/ per capire cosa restituisce il servizio (non documentato)."""
+    try:
+        from ..config import resolve
+        cartella = resolve(cfg, "data/log/pvp")
+        cartella.mkdir(parents=True, exist_ok=True)
+        (cartella / f"pagina_{pagina + 1}.json").write_text(json.dumps(data, ensure_ascii=False, indent=1)[:5_000_000],
+                                                            encoding="utf-8")
+    except OSError as e:
+        log.debug("PVP: risposta non salvata (%s)", e)
+
+
+def _totale(data) -> int | None:
+    """Numero totale di risultati, se il servizio lo dice (totalElements, totale...)."""
+    for o in _walk(data, lambda o: any(re.search(r"^total(?:Elements|e|Count)?$|^numeroRisultati$", k, re.I) for k in o)):
+        for k, v in o.items():
+            if re.search(r"^total(?:Elements|e|Count)?$|^numeroRisultati$", k, re.I) and isinstance(v, (int, float)):
+                return int(v)
+    return None
+
+
+def _nel_comune(l: Listing, comune: str | None) -> bool:
+    if not comune:
+        return True
+    return comune.lower() in f"{l.titolo} {l.descrizione} {l.indirizzo or ''}".lower()
+
+
 def scrape(cfg: dict, client: PoliteClient) -> list[Listing]:
     p = cfg.get("aste_pvp", {})
     api = p.get("api_url")
@@ -269,11 +296,19 @@ def scrape(cfg: dict, client: PoliteClient) -> list[Listing]:
             log.error("PVP: il servizio di ricerca non risponde come previsto (%s). "
                       "Salva la ricerca dal browser in pagine_salvate/ e usa 'importa-html'.", e)
             break
-        lotti = lotti_da_json(data, comune)
+        _salva_risposta(cfg, pagina, data)
+        grezzi = lotti_da_json(data)                       # tutti i lotti della risposta
+        lotti = [l for l in grezzi if _nel_comune(l, comune)]
         nuovi = [l for l in lotti if l.source_id not in tutti]
         for l in nuovi:
             tutti[l.source_id] = l
-        log.info("PVP pagina %d: %d lotti", pagina + 1, len(nuovi))
-        if not nuovi or len(lotti) < per_pagina:
+        totale = _totale(data)
+        log.info("PVP pagina %d: %d lotti nella risposta%s, %d nel comune di %s",
+                 pagina + 1, len(grezzi), f" (su {totale} totali)" if totale else "", len(nuovi), comune)
+        if grezzi and len(lotti) < len(grezzi) / 2:
+            log.warning("PVP: la maggior parte dei lotti ricevuti non è di %s: il servizio sembra ignorare il filtro "
+                        "per comune. Risposta salvata in data/log/pvp/ per controllarla.", comune)
+        # si continua finché il servizio restituisce pagine piene (contando i lotti ricevuti, non quelli filtrati)
+        if not grezzi or len(grezzi) < per_pagina:
             break
     return list(tutti.values())
