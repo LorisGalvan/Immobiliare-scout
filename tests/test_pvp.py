@@ -121,3 +121,35 @@ def test_box_nella_descrizione_non_scarta():
     assert valida(l, cfg)[0]
     l2 = Listing(source="subito", source_id="C", prezzo=20000, mq=20, lat=45.44, lon=10.98, titolo="Box auto in vendita")
     assert valida(l2, cfg) == (False, "esclusione: 'box auto'")
+
+
+def test_scrape_conta_i_lotti_ricevuti_e_salva_la_risposta(tmp_path):
+    """Il servizio può ignorare il filtro per comune: si continua a sfogliare finché le pagine sono piene
+    (contando i lotti ricevuti) e la risposta resta in data/log/pvp/ per il controllo."""
+    class R:
+        status_code = 200
+
+        def __init__(self, d):
+            self.d = d
+
+        def json(self):
+            return self.d
+
+    def pagina(n):
+        return {"body": {"content": [
+            {"idAnnuncio": n * 10 + i, "comune": "Verona" if i == 0 else "Padova", "prezzoBase": 100000.0 + i}
+            for i in range(2)]}, "totalElements": 4}
+
+    chiamate = []
+
+    class Client:
+        def post_json(self, url, corpo):
+            chiamate.append(url)
+            return R(pagina(len(chiamate)) if len(chiamate) <= 2 else {"body": {"content": []}})
+
+    cfg = load_config()
+    cfg["_root"] = str(tmp_path)
+    cfg["aste_pvp"] = {**cfg["aste_pvp"], "per_pagina": 2, "max_pagine": 5}
+    lotti = pvp.scrape(cfg, Client())
+    assert [l.source_id for l in lotti] == ["10", "20"] and len(chiamate) == 3
+    assert (tmp_path / "data/log/pvp/pagina_1.json").exists()
