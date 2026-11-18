@@ -25,3 +25,8 @@ def test_input():
     i = wk.input_actor(load_config())
     assert i["urls"][0] == "https://www.wikicasa.it/vendita-case/verona/" and i["urls"][1].endswith("?p=2")
     assert len(i["urls"]) == 8
+
+
+def test_privato_dal_testo():
+    p = wk.a_listing({**RIGA, "description": "Vendo da privato, astenersi agenzie"})
+    assert p.privato is True and p.agenzia is None

@@ -15,9 +15,11 @@ d'ambiente ``SCOUT_APIFY_TOKEN``. Mai in config.yaml, che è su GitHub.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import time
+from pathlib import Path
 
 import requests
 
@@ -98,9 +100,21 @@ def esegui_actor(tok: str, attore: str, input_, attesa_max_s: int = 3600,
         if len(blocco) < 1000:
             break
         offset += 1000
+    _salva_grezzi(run.get("id", "run"), righe)
     costo = run.get("usageTotalUsd")
     log.info("Apify: %d risultati%s", len(righe), f", costo {costo:.2f} $" if isinstance(costo, (int, float)) else "")
     return righe
+
+
+def _salva_grezzi(run_id: str, righe: list[dict]) -> None:
+    """Copia dei risultati in data/log/apify/<run>.json: serve a capire i campi di un actor nuovo."""
+    try:
+        cartella = Path(os.environ.get("SCOUT_LOG_APIFY", "data/log/apify"))
+        cartella.mkdir(parents=True, exist_ok=True)
+        (cartella / f"{run_id}.json").write_text(json.dumps(righe, ensure_ascii=False, indent=1)[:20_000_000],
+                                               encoding="utf-8")
+    except OSError as e:
+        log.debug("Apify: risultati non salvati (%s)", e)
 
 
 # ---------------------------------------------------------------- input per actor
