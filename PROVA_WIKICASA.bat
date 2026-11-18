@@ -8,7 +8,7 @@ if not exist ".venv\Scripts\python.exe" (
   pause
   exit /b 1
 )
-echo  ===== Prova Wikicasa tramite Apify (wikicasa.pagine in config, di solito 8 pagine = circa 200 annunci) =====
+echo  ===== Wikicasa tramite Apify (wikicasa.pagine in config: 30 pagine = tutta Verona, circa 4 $) =====
 ".venv\Scripts\python.exe" -m scout scrape --siti wikicasa_apify || goto errore
 echo.
 echo  ===== Analisi, Excel, mappa e pubblicazione sul sito =====

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { eur, FONTE, num, piano } from "../lib/format";
 import { useData } from "../lib/store";
@@ -5,8 +6,29 @@ import type { Annuncio } from "../lib/types";
 import { BadgeStato, Scostamento, Vuoto } from "./ui";
 
 /** Tabella su desktop, schede su telefono. */
-export default function ListaAnnunci({ annunci, vuoto = "Nessun annuncio" , mostraZona = true }:
-  { annunci: Annuncio[]; vuoto?: string; mostraZona?: boolean }) {
+type Inserzionista = "tutti" | "privati" | "agenzie";
+const ETICHETTE: Record<Inserzionista, string> = { tutti: "Tutti", privati: "Privati", agenzie: "Agenzie" };
+const passa = (a: Annuncio, f: Inserzionista) => f === "tutti" || (f === "privati" ? !!a.privato : !a.privato);
+
+/** Tabella su desktop, schede su telefono. Sopra, il filtro Tutti / Privati / Agenzie. */
+export default function ListaAnnunci({ annunci: tutti, vuoto = "Nessun annuncio", mostraZona = true, filtroInserzionista = true }:
+  { annunci: Annuncio[]; vuoto?: string; mostraZona?: boolean; filtroInserzionista?: boolean }) {
+  const [ins, setIns] = useState<Inserzionista>("tutti");
+  const annunci = filtroInserzionista ? tutti.filter((a) => passa(a, ins)) : tutti;
+  const filtro = filtroInserzionista && tutti.length > 0 && (
+    <div className="mb-2 inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-sm" role="group" aria-label="Inserzionista">
+      {(Object.keys(ETICHETTE) as Inserzionista[]).map((k) => (
+        <button key={k} type="button" onClick={() => setIns(k)} aria-pressed={ins === k}
+          className={`rounded-md px-3 py-1 font-medium ${ins === k ? "bg-brand-700 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
+          {ETICHETTE[k]} <span className={ins === k ? "text-white/70" : "text-slate-400"}>{tutti.filter((a) => passa(a, k)).length}</span>
+        </button>
+      ))}
+    </div>
+  );
+  return <>{filtro}<Elenco annunci={annunci} vuoto={vuoto} mostraZona={mostraZona} /></>;
+}
+
+function Elenco({ annunci, vuoto, mostraZona }: { annunci: Annuncio[]; vuoto: string; mostraZona: boolean }) {
   const nav = useNavigate();
   const { valutazioni } = useData();
   const statoDi = (uid: string) => {

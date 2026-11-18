@@ -11,7 +11,6 @@ export default function Occasioni() {
   const [zona, setZona] = useState("");
   const [fascia, setFascia] = useState("");
   const [fonte, setFonte] = useState("");
-  const [soloPrivati, setSoloPrivati] = useState(false);
   const [nascondiScartati, setNascondiScartati] = useState(true);
   const [ordine, setOrdine] = useState<Ordine>("scostamento");
   const [testo, setTesto] = useState("");
@@ -24,7 +23,7 @@ export default function Occasioni() {
     const l = dataset.annunci.filter((a) =>
       a.attivo && a.scostamento_pct != null && a.scostamento_pct <= soglia &&
       (!zona || a.microzona === zona) && (!fascia || a.fascia === fascia) && (!fonte || a.source === fonte) &&
-      (!soloPrivati || a.privato) && (!nascondiScartati || !scartati.has(a.uid)) &&
+      (!nascondiScartati || !scartati.has(a.uid)) &&
       (!t || `${a.indirizzo} ${a.titolo} ${a.agenzia}`.toLowerCase().includes(t)));
     const cmp: Record<Ordine, (a: typeof l[0], b: typeof l[0]) => number> = {
       scostamento: (a, b) => a.scostamento_pct! - b.scostamento_pct!,
@@ -33,7 +32,7 @@ export default function Occasioni() {
       giorni: (a, b) => (b.giorni_online ?? 0) - (a.giorni_online ?? 0),
     };
     return l.sort(cmp[ordine]);
-  }, [dataset, soglia, zona, fascia, fonte, soloPrivati, nascondiScartati, ordine, testo, scartati]);
+  }, [dataset, soglia, zona, fascia, fonte, nascondiScartati, ordine, testo, scartati]);
 
   if (!dataset) return null;
   const fonti = [...new Set(dataset.annunci.map((a) => a.source))];
@@ -85,7 +84,6 @@ export default function Occasioni() {
           <input className="input" placeholder="via, agenzia…" value={testo} onChange={(e) => setTesto(e.target.value)} />
         </div>
         <div className="col-span-2 flex flex-wrap items-center gap-4 text-sm sm:col-span-3 lg:col-span-7">
-          <label className="inline-flex items-center gap-2"><input type="checkbox" checked={soloPrivati} onChange={(e) => setSoloPrivati(e.target.checked)} />Solo privati</label>
           <label className="inline-flex items-center gap-2"><input type="checkbox" checked={nascondiScartati} onChange={(e) => setNascondiScartati(e.target.checked)} />Nascondi "{STATI_VAL[4].label}"</label>
         </div>
       </div>
