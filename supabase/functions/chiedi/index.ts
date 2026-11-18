@@ -142,7 +142,7 @@ const STRUMENTO: Anthropic.Beta.BetaTool = {
     properties: {
       tipo: { type: "string", enum: ["compravendita", "asta", "tutti"], description: "compravendita = mercato libero, asta = aste giudiziarie" },
       microzona: { type: ["string", "null"], description: "nome (anche parziale) della microzona, null = tutte" },
-      fascia: { type: ["string", "null"], enum: ["30/50", "50/70", "70/100", "100+", null] },
+      fascia: { type: ["string", "null"], description: "fascia di superficie: 30/50, 50/70, 70/100 o 100+; null = tutte" },
       prezzo_min: { type: ["number", "null"] },
       prezzo_max: { type: ["number", "null"] },
       mq_min: { type: ["number", "null"] },
@@ -232,7 +232,11 @@ Deno.serve(async (req) => {
   } catch (e) {
     if (e instanceof Anthropic.RateLimitError) return json({ errore: "Troppe richieste, riprova tra un minuto." }, 429);
     if (e instanceof Anthropic.AuthenticationError) return json({ errore: "Chiave di Claude non valida." }, 500);
-    if (e instanceof Anthropic.APIError) return json({ errore: `Errore del servizio (${e.status}).` }, 502);
+    if (e instanceof Anthropic.BadRequestError) {
+      // il motivo (es. credito esaurito) non contiene dati riservati: lo mostro per capire cosa sistemare
+      return json({ errore: `Errore del servizio (400): ${e.message}` }, 502);
+    }
+    if (e instanceof Anthropic.APIError) return json({ errore: `Errore del servizio (${e.status}): ${e.message}` }, 502);
     return json({ errore: "Errore interno." }, 500);
   }
 });
