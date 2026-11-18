@@ -66,7 +66,7 @@ scraping:
 # Il token va SOLO in config.local.yaml (apify: {token: ...}) o in SCOUT_APIFY_TOKEN, mai qui.
 apify:
   attore: crawloop/immobiliare-it-scraper   # alternativa: igolaizola/immobiliare-it-scraper (senza descrizione)
-  max_annunci: 200      # 200 = giro di prova; per Verona intera 4000
+  max_annunci:  4000  # 200 = giro di prova; per Verona intera 4000
   max_aste: 300         # aste lette in un giro separato, con un limite proprio
   includi_aste: true    # cerca anche nella sezione aste di Immobiliare
   descrizione: true     # testo completo: serve per aste, frazionabili e mq mancanti
