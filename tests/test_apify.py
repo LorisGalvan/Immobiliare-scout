@@ -35,7 +35,7 @@ def test_conversione_igolaizola_e_asta():
 def test_input_per_actor():
     cfg = load_config()
     c = ap.input_actor(cfg, "crawloop/immobiliare-it-scraper")
-    assert len(c) == 1 and len(c[0]["startUrls"]) == 2 and "aste-immobiliari/verona" in c[0]["startUrls"][1]["url"]
+    assert len(c) == 2 and "aste-immobiliari/verona" in c[1]["startUrls"][0]["url"] and c[1]["maxItems"] == 300
     i = ap.input_actor(cfg, "igolaizola/immobiliare-it-scraper")
     assert [x["operation"] for x in i] == ["buy", "auction"] and i[0]["municipality"] == "Verona"
 
