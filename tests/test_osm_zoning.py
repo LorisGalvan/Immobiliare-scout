@@ -22,8 +22,10 @@ def test_ritagli_sottili_scartati():
     assert len(zone) == 2 and all(z.geom.bounds[2] < 10.995 for z in zone)
 
 
-def test_overpass_prova_altri_server(monkeypatch):
+def test_overpass_prova_altri_server(monkeypatch, tmp_path):
     import scout.geo.osm_zoning as oz
+
+    monkeypatch.chdir(tmp_path)               # la cache delle risposte va in una cartella temporanea
 
     chiamate = []
 
@@ -42,3 +44,4 @@ def test_overpass_prova_altri_server(monkeypatch):
     assert oz.overpass("[out:json];", "Mozilla/5.0") == {"elements": []}
     assert len(chiamate) == 2 and chiamate[1][0] != chiamate[0][0]
     assert all("ScoutImmobili" in ua for _, ua in chiamate)      # mai lo User-Agent da browser
+    assert oz.overpass("[out:json];", None) == {"elements": []} and len(chiamate) == 2   # seconda volta: dalla cache
