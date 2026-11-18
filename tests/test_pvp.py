@@ -153,3 +153,54 @@ def test_scrape_conta_i_lotti_ricevuti_e_salva_la_risposta(tmp_path):
     lotti = pvp.scrape(cfg, Client())
     assert [l.source_id for l in lotti] == ["10", "20"] and len(chiamate) == 3
     assert (tmp_path / "data/log/pvp/pagina_1.json").exists()
+
+
+def _lotto_reale(i, citta, data, trib="Tribunale di VERONA"):
+    """Forma reale della risposta del PVP (novembre 2026)."""
+    return {"id": i, "tipoLotto": "IMMOBILI", "categoriaLotto": "IMMOBILE_RESIDENZIALE", "categoriaBene": ["APPARTAMENTO"],
+            "indirizzo": {"via": "Via Roma 1", "cap": "37100", "citta": citta, "provincia": "Verona",
+                          "coordinate": {"latitudine": 45.44, "longitudine": 10.99}},
+            "procedura": "12", "prezzoBaseAsta": 100000.0, "dataVendita": data, "dataOraVendita": data + "T10:00",
+            "offertaMinima": 75000.0, "disponibilita": ["LIBER"], "descLotto": "Appartamento di 80 mq",
+            "tribunale": trib, "codiceTribunale": "0"}
+
+
+def test_pvp_filtra_per_tribunale_e_scarta_le_aste_vecchie(tmp_path):
+    import datetime as dt
+    oggi = dt.date.today()
+    futura, vecchia = str(oggi + dt.timedelta(days=30)), str(oggi - dt.timedelta(days=400))
+
+    class R:
+        status_code = 200
+
+        def __init__(self, d):
+            self.d = d
+
+        def json(self):
+            return self.d
+
+    corpi, urls = [], []
+
+    class Client:
+        def post_json(self, url, corpo):
+            corpi.append(corpo)
+            urls.append(url)
+            if len(corpi) == 1:
+                return R({"body": {"content": [_lotto_reale(1, "Verona", futura), _lotto_reale(2, "Bussolengo", futura)],
+                                   "totalElements": 4}})
+            return R({"body": {"content": [_lotto_reale(3, "Verona", vecchia), _lotto_reale(4, "Verona", vecchia)]}})
+
+    cfg = load_config()
+    cfg["_root"] = str(tmp_path)
+    cfg["aste_pvp"] = {**cfg["aste_pvp"], "per_pagina": 2, "max_pagine": 5}
+    lotti = pvp.scrape(cfg, Client())
+    assert corpi[0]["tribunale"] == "Tribunale di VERONA" and "desc" in urls[0]
+    assert [l.source_id for l in lotti] == ["1"] and len(corpi) == 2      # si ferma alla pagina di aste vecchie
+    assert lotti[0].lat == 45.44 and lotti[0].prezzo == 75000
+
+
+def test_tribunale_da_config():
+    cfg = load_config()
+    cfg["territorio"] = {**cfg["territorio"], "comune": "San Giovanni Lupatoto"}
+    cfg["aste_pvp"] = {**cfg["aste_pvp"], "tribunale": "Tribunale di Verona"}
+    assert pvp.tribunale(cfg) == "Tribunale di VERONA"

@@ -7,7 +7,7 @@ quindi finiscono sempre nella sezione Aste e mai nelle mediane del mercato liber
 Due modi per leggerli:
 
 1. **Automatico** (``scraping.siti.pvp: true``): il bot interroga il servizio di ricerca
-   che usa il sito del PVP (``aste_pvp.api_url``), filtrando per comune e solo immobili,
+   che usa il sito del PVP (``aste_pvp.api_url``), filtrando per tribunale (poi per comune) e solo immobili,
    con lo stesso ritmo lento degli altri siti. Il servizio non è documentato: se il
    Ministero lo cambia, il bot lo segnala nel log e si usa il modo 2.
 2. **Pagine salvate**: si apre la ricerca sul PVP nel browser e si salva la pagina
@@ -158,9 +158,9 @@ def lotti_da_json(data, comune: str | None = None) -> list[Listing]:
         if not url.startswith("http"):
             url = BASE + "/" + url.lstrip("/")
         com = _find(f, r"^comune$|citt[aà]|^city$|descComune")
-        if comune and com and comune.lower() not in str(com).lower():
-            continue
         testo = " ".join(str(v) for v in f.values() if isinstance(v, str) and len(v) > 25)
+        if comune and comune.lower() not in (str(com) if com else testo).lower():
+            continue                     # senza città nel lotto si guarda la descrizione
         tipo = _find(f, r"tipologia|categoria|descTipo|tipo.?bene")
         titolo = " ".join(str(x) for x in (tipo, _find(f, r"descrizione.?breve|titolo|descLotto")) if x) or "Lotto in asta"
         lat, lon = _num(_find(f, r"^lat(?:itudine)?$")), _num(_find(f, r"^(?:lon|lng|longitudine)$"))
@@ -237,13 +237,31 @@ def parse_search_page(html: str, comune: str | None = None) -> list[Listing]:
 
 
 # ---------------------------------------------------------------- automatico
+def tribunale(cfg: dict) -> str:
+    """Il servizio ignora il comune ma filtra per tribunale, scritto come sul sito: "Tribunale di VERONA".
+    ``aste_pvp.tribunale`` serve quando il comune non è sede di tribunale (es. San Giovanni Lupatoto)."""
+    t, p = cfg.get("territorio", {}), cfg.get("aste_pvp", {})
+    nome = str(p.get("tribunale") or t.get("comune") or "").strip()
+    nome = re.sub(r"^tribunale\s+di\s+", "", nome, flags=re.I)
+    return f"Tribunale di {nome.upper()}"
+
+
 def corpo_ricerca(cfg: dict, pagina: int) -> dict:
     t, p = cfg.get("territorio", {}), cfg.get("aste_pvp", {})
     corpo = {"tipoLotto": "IMMOBILI", "categoriaBene": p.get("categorie", []), "flagRicerca": 0,
+             "tribunale": tribunale(cfg),
              "comune": t.get("comune"), "provincia": t.get("provincia"), "coordIndirizzo": "",
              "raggioIndirizzo": str(p.get("raggio_km", 0) or "")}
     corpo.update(p.get("filtri_extra") or {})
     return corpo
+
+
+_DATA_ASTA = re.compile(r"Data asta (\d{2})/(\d{2})/(\d{4})")
+
+
+def data_asta(l: Listing) -> dt.date | None:
+    m = _DATA_ASTA.search(l.descrizione or "")
+    return dt.date(int(m[3]), int(m[2]), int(m[1])) if m else None
 
 
 def _salva_risposta(cfg: dict, pagina: int, data) -> None:
@@ -281,9 +299,11 @@ def scrape(cfg: dict, client: PoliteClient) -> list[Listing]:
         return []
     comune = cfg.get("territorio", {}).get("comune")
     per_pagina = int(p.get("per_pagina", 50))
+    # le aste già passate da più di N giorni non servono; si parte dalle più lontane nel futuro
+    limite = dt.date.today() - dt.timedelta(days=int(p.get("giorni_passati", 60)))
     tutti: dict[str, Listing] = {}
     for pagina in range(int(p.get("max_pagine", 20))):
-        url = f"{api}?language=it&page={pagina}&size={per_pagina}&sort=dataOraVendita,asc"
+        url = f"{api}?language=it&page={pagina}&size={per_pagina}&sort=dataOraVendita,desc"
         try:
             r = client.post_json(url, corpo_ricerca(cfg, pagina))
             if r.status_code != 200:
@@ -298,17 +318,22 @@ def scrape(cfg: dict, client: PoliteClient) -> list[Listing]:
             break
         _salva_risposta(cfg, pagina, data)
         grezzi = lotti_da_json(data)                       # tutti i lotti della risposta
-        lotti = [l for l in grezzi if _nel_comune(l, comune)]
+        vecchi = [l for l in grezzi if (d := data_asta(l)) and d < limite]
+        # comune letto dal campo città del lotto (nel testo c'è anche "Tribunale di Verona", che non basta)
+        del_comune = {l.source_id for l in lotti_da_json(data, comune)}
+        lotti = [l for l in grezzi if l.source_id in del_comune and _nel_comune(l, comune) and l not in vecchi]
         nuovi = [l for l in lotti if l.source_id not in tutti]
         for l in nuovi:
             tutti[l.source_id] = l
         totale = _totale(data)
         log.info("PVP pagina %d: %d lotti nella risposta%s, %d nel comune di %s",
                  pagina + 1, len(grezzi), f" (su {totale} totali)" if totale else "", len(nuovi), comune)
-        if grezzi and len(lotti) < len(grezzi) / 2:
-            log.warning("PVP: la maggior parte dei lotti ricevuti non è di %s: il servizio sembra ignorare il filtro "
-                        "per comune. Risposta salvata in data/log/pvp/ per controllarla.", comune)
+        altri = [l for l in grezzi if l.agenzia and tribunale(cfg).lower() not in l.agenzia.lower()]
+        if grezzi and len(altri) > len(grezzi) / 2:
+            log.warning("PVP: la maggior parte dei lotti ricevuti non è del %s: il servizio sembra ignorare il "
+                        "filtro. Risposta salvata in data/log/pvp/ per controllarla.", tribunale(cfg))
         # si continua finché il servizio restituisce pagine piene (contando i lotti ricevuti, non quelli filtrati)
-        if not grezzi or len(grezzi) < per_pagina:
+        # e finché nella pagina ci sono aste recenti (sono in ordine dalla più lontana nel futuro)
+        if not grezzi or len(grezzi) < per_pagina or len(vecchi) == len(grezzi):
             break
     return list(tutti.values())
