@@ -197,6 +197,13 @@ costa circa 3 $ ogni 1.000 annunci. Doppio clic su `PROVA_WIKICASA.bat`: legge 3
 Wikicasa non ha un filtro privati: si leggono tutti gli annunci e sul sito si filtrano con Tutti / Privati / Agenzie. Gli annunci senza agenzia finiscono nella pagina **Privati**.
 Se va bene, `scraping.siti.wikicasa_apify: true` e alza `wikicasa.pagine`.
 
+### 4.1e Idealista e Casa.it tramite Apify
+
+Actor `epicscrapers/idealista-scraper` (circa 1 $ ogni 1.000 annunci) e `logiover/casa-it-scraper-italy-real-estate`
+(circa 1,50 $ ogni 1.000). Doppio clic su `PROVA_PORTALI.bat`: fino a 3.000 annunci per portale.
+Gli annunci presenti su più portali sono riconosciuti come doppioni e contano una volta sola.
+Limiti e opzioni (facoltativi) nella sezione `portali_apify:` di config.yaml, es. `portali_apify: {idealista: {max_annunci: 500}}`.
+
 ### 4.2 Semi-manuale (se un sito blocca, e per Idealista)
 
 1. Apri nel browser la ricerca (puoi usare i link in riga 1-3 dei fogli microzona dell'Excel generato).
