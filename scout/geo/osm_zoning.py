@@ -24,7 +24,14 @@ from .microzones import Microzona, MicrozoneSet
 
 log = logging.getLogger(__name__)
 
-OVERPASS_URLS = ["https://overpass-api.de/api/interpreter"]
+OVERPASS_URLS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+]
+# Overpass rifiuta (HTTP 406/429) gli User-Agent da browser finto o generici: serve un nome chiaro del programma
+UA_OVERPASS = "ScoutImmobili/1.0 (bot personale di analisi immobiliare; microzone da OSM)"
 
 ROAD_LEVELS = {
     "base": "motorway|trunk|primary",
@@ -33,20 +40,29 @@ ROAD_LEVELS = {
 }
 
 
-def overpass(query: str, user_agent: str, tentativi: int = 3) -> dict:
+def overpass(query: str, user_agent: str | None = None, tentativi: int = 3) -> dict:
+    """Interroga Overpass provando più server. ``user_agent`` è ignorato di proposito: quello da browser
+    usato per i portali viene rifiutato da Overpass."""
     last = None
+    headers = {"User-Agent": UA_OVERPASS, "Accept": "application/json,*/*;q=0.8"}
     for i in range(tentativi):
         for url in OVERPASS_URLS:
             try:
-                r = requests.post(url, data={"data": query}, headers={"User-Agent": user_agent},
-                                  timeout=180)
+                r = requests.post(url, data={"data": query}, headers=headers, timeout=180)
                 if r.status_code == 200:
-                    return r.json()
-                last = f"HTTP {r.status_code}"
+                    try:
+                        return r.json()
+                    except ValueError:
+                        last = f"{url}: risposta non JSON"
+                        continue
+                last = f"{url}: HTTP {r.status_code}"
+                log.warning("Overpass %s", last)
             except requests.RequestException as e:
-                last = str(e)
-        time.sleep(15 * (i + 1))
-    raise RuntimeError(f"Overpass non raggiungibile: {last}")
+                last = f"{url}: {e}"
+                log.warning("Overpass %s", last)
+        if i < tentativi - 1:
+            time.sleep(10 * (i + 1))
+    raise RuntimeError(f"Overpass non raggiungibile (ultimo errore {last})")
 
 
 def _ways_to_lines(elements) -> list[LineString]:
@@ -77,7 +93,7 @@ def _relation_polygon(el) -> Polygon | None:
 
 def fetch_comune_boundary(comune: str, user_agent: str) -> Polygon:
     q = f"""[out:json][timeout:120];
-    area["name"="Italia"]["admin_level"="2"]->.it;
+    area["ISO3166-1"="IT"]["admin_level"="2"]->.it;
     rel(area.it)["boundary"="administrative"]["admin_level"="8"]["name"="{comune}"];
     out geom;"""
     data = overpass(q, user_agent)

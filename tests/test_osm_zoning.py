@@ -20,3 +20,25 @@ def test_ritagli_sottili_scartati():
     striscia = box(11.00, 45.42, 11.00013, 45.45)
     zone = build_zones(libero.union(striscia), [LineString([(10.97, 45.40), (10.97, 45.50)])], [], area_min_m2=150_000)
     assert len(zone) == 2 and all(z.geom.bounds[2] < 10.995 for z in zone)
+
+
+def test_overpass_prova_altri_server(monkeypatch):
+    import scout.geo.osm_zoning as oz
+
+    chiamate = []
+
+    class R:
+        def __init__(self, code):
+            self.status_code = code
+
+        def json(self):
+            return {"elements": []}
+
+    def finto_post(url, data, headers, timeout):
+        chiamate.append((url, headers["User-Agent"]))
+        return R(406 if len(chiamate) == 1 else 200)
+
+    monkeypatch.setattr(oz.requests, "post", finto_post)
+    assert oz.overpass("[out:json];", "Mozilla/5.0") == {"elements": []}
+    assert len(chiamate) == 2 and chiamate[1][0] != chiamate[0][0]
+    assert all("ScoutImmobili" in ua for _, ua in chiamate)      # mai lo User-Agent da browser
