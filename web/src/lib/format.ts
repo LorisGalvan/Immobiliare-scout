@@ -30,6 +30,7 @@ export const FONTE: Record<string, string> = {
   casa: "Casa.it",
   pvp: "Portale Vendite Pubbliche",
   facebook: "Facebook",
+  wikicasa: "Wikicasa",
   excel: "Storico Excel",
 };
 
