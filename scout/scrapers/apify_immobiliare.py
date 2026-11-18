@@ -92,13 +92,18 @@ def input_actor(cfg: dict, attore: str) -> list[dict]:
             out.append({**base, "operation": "auction"})
         return out
     # crawloop (e actor simili che accettano gli URL di ricerca di Immobiliare)
-    urls = [{"url": immobiliare.search_url(cfg, 1)}]
+    # aste in un'esecuzione separata: con un solo limite maxItems le compravendite (prima URL)
+    # lo esaurirebbero e le aste non verrebbero mai lette
+    def run(url: str, n: int) -> dict:
+        return {"startUrls": [{"url": url}], "maxItems": n, "includeDetails": bool(a.get("descrizione", True)),
+                "includePhones": False, "monitorMode": False,
+                "proxyConfiguration": {"useApifyProxy": True, "apifyProxyGroups": ["RESIDENTIAL"],
+                                       "apifyProxyCountry": "IT"}}
+    out = [run(immobiliare.search_url(cfg, 1), max_)]
     if aste:
-        urls.append({"url": f"{immobiliare.BASE}/aste-immobiliari/{t.get('slug_immobiliare', 'verona')}/"})
-    return [{"startUrls": urls, "maxItems": max_, "includeDetails": bool(a.get("descrizione", True)),
-             "includePhones": False, "monitorMode": False,
-             "proxyConfiguration": {"useApifyProxy": True, "apifyProxyGroups": ["RESIDENTIAL"],
-                                    "apifyProxyCountry": "IT"}}]
+        out.append(run(f"{immobiliare.BASE}/aste-immobiliari/{t.get('slug_immobiliare', 'verona')}/",
+                       int(a.get("max_aste", 300))))
+    return out
 
 
 # ---------------------------------------------------------------- conversione
@@ -166,9 +171,10 @@ def scrape(cfg: dict) -> tuple[list[Listing], bool]:
             log.error("Apify: %s", e)
             completa = False
             continue
-        if len(righe) >= max_:
+        if len(righe) >= inp.get("maxItems", max_):
             completa = False
-            log.info("Apify: raggiunto il limite di %d annunci (apify.max_annunci): elenco parziale", max_)
+            log.info("Apify: raggiunto il limite di %d annunci (apify.max_annunci / max_aste): elenco parziale",
+                     inp.get("maxItems", max_))
         for r in righe:
             l = a_listing(r)
             if l and l.prezzo:

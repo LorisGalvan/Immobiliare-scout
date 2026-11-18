@@ -65,6 +65,7 @@ scraping:
 apify:
   attore: crawloop/immobiliare-it-scraper   # alternativa: igolaizola/immobiliare-it-scraper (senza descrizione)
   max_annunci: 200      # 200 = giro di prova; per Verona intera 4000
+  max_aste: 300         # aste lette in un giro separato, con un limite proprio
   includi_aste: true    # cerca anche nella sezione aste di Immobiliare
   descrizione: true     # testo completo: serve per aste, frazionabili e mq mancanti
   attesa_max_min: 60

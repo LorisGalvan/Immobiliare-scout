@@ -174,6 +174,9 @@ sui server di Apify (circa 1 $ ogni 1.000 annunci) e importa i risultati come an
 3. Doppio clic su `PROVA_APIFY.bat`: giro di prova da 200 annunci (`apify.max_annunci` in `config.yaml`).
 4. Se il risultato va bene, metti `max_annunci: 4000` e `scraping.siti.immobiliare_apify: true`:
    da quel momento `AVVIA.bat` lo usa a ogni giro.
+   Le aste di Immobiliare vengono lette in un giro Apify separato (`apify.max_aste`, di solito 300).
+5. Se la pubblicazione sul sito non va a buon fine (rete lenta), doppio clic su `PUBBLICA.bat`:
+   ripubblica i dati già raccolti senza rifare le ricerche e senza mandare alert.
 
 ### 4.2 Semi-manuale (se un sito blocca, e per Idealista)
 

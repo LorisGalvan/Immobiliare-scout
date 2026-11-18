@@ -43,3 +43,26 @@ def test_payload_con_aste(tmp_path):
     assert a["tipo_vendita"] == "asta" and a["occasione"] is False and a["data_asta"] == "2027-01-15"
     assert isinstance(a["indizi_vendita"], list) and a["indizi_vendita"]
     assert all(x["tipo_vendita"] == "compravendita" for x in p["annunci"] if x["uid"] != "immobiliare:ASTA1")
+
+
+def test_upsert_riprova_se_la_connessione_cade(monkeypatch):
+    import requests
+    from scout.supabase_sync import Supabase
+
+    sb = Supabase("https://x.supabase.co", "sb_secret_prova")
+    sb.pausa_s = 0
+    chiamate = []
+
+    class R:
+        status_code = 201
+        text = ""
+
+    def finta(metodo, url, **kw):
+        chiamate.append(len(kw["json"]))
+        if len(chiamate) == 1:
+            raise requests.ConnectionError("Remote end closed connection without response")
+        return R()
+
+    monkeypatch.setattr(sb.s, "request", finta)
+    sb.upsert("annunci", [{"uid": i} for i in range(450)], "uid")
+    assert chiamate == [200, 200, 200, 50]      # primo blocco ripetuto, poi a blocchi da 200

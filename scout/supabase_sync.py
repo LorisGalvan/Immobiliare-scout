@@ -16,6 +16,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import time
+
 import requests
 
 log = logging.getLogger(__name__)
@@ -121,7 +123,7 @@ def esporta_json(path, payload: dict) -> str:
 
 
 class Supabase:
-    def __init__(self, url: str, key: str, timeout: int = 60):
+    def __init__(self, url: str, key: str, timeout: int = 120):
         self.url = url.rstrip("/")
         self.s = requests.Session()
         self.s.headers.update({"apikey": key})
@@ -130,31 +132,49 @@ class Supabase:
         if key.startswith("eyJ"):
             self.s.headers["Authorization"] = f"Bearer {key}"
         self.timeout = timeout
+        self.pausa_s = 5
 
-    def upsert(self, table: str, rows: list[dict], on_conflict: str, batch: int = 500):
+    def _richiesta(self, metodo: str, url: str, tentativi: int = 4, **kw) -> requests.Response:
+        """Richiesta con nuovi tentativi se la connessione cade (es. RemoteDisconnected) o il server
+        risponde 502/503/504: capita con invii grandi o reti lente."""
+        for n in range(1, tentativi + 1):
+            try:
+                r = self.s.request(metodo, url, **kw)
+                if r.status_code not in (502, 503, 504) or n == tentativi:
+                    return r
+                motivo = f"HTTP {r.status_code}"
+            except (requests.ConnectionError, requests.Timeout) as e:
+                if n == tentativi:
+                    raise
+                motivo = type(e).__name__
+                self.s.close()              # connessione rovinata: la riapro
+            log.warning("Supabase: %s su %s, riprovo (%d/%d)", motivo, url.rsplit("/", 1)[-1], n, tentativi - 1)
+            time.sleep(self.pausa_s * n)
+        raise AssertionError("irraggiungibile")
+
+    def upsert(self, table: str, rows: list[dict], on_conflict: str, batch: int = 200):
         for i in range(0, len(rows), batch):
-            r = self.s.post(f"{self.url}/rest/v1/{table}", params={"on_conflict": on_conflict},
-                            json=rows[i:i + batch], timeout=self.timeout,
-                            headers={"Prefer": "resolution=merge-duplicates,return=minimal",
-                                     "Content-Type": "application/json"})
+            r = self._richiesta("POST", f"{self.url}/rest/v1/{table}", params={"on_conflict": on_conflict},
+                                json=rows[i:i + batch], timeout=self.timeout,
+                                headers={"Prefer": "resolution=merge-duplicates,return=minimal",
+                                         "Content-Type": "application/json"})
             if r.status_code >= 300:
                 raise RuntimeError(f"Supabase upsert {table}: HTTP {r.status_code} {r.text[:300]}")
 
     def delete(self, table: str, filters: dict):
-        r = self.s.delete(f"{self.url}/rest/v1/{table}", params=filters, timeout=self.timeout)
+        r = self._richiesta("DELETE", f"{self.url}/rest/v1/{table}", params=filters, timeout=self.timeout)
         if r.status_code >= 300:
             raise RuntimeError(f"Supabase delete {table}: HTTP {r.status_code} {r.text[:300]}")
 
     def insert(self, table: str, row: dict):
-        r = self.s.post(f"{self.url}/rest/v1/{table}", json=row, timeout=self.timeout,
-                        headers={"Prefer": "return=minimal"})
+        r = self._richiesta("POST", f"{self.url}/rest/v1/{table}", json=row, timeout=self.timeout,
+                            headers={"Prefer": "return=minimal"})
         if r.status_code >= 300:
             raise RuntimeError(f"Supabase insert {table}: HTTP {r.status_code} {r.text[:300]}")
 
     def upload(self, bucket: str, path: str, file: Path, content_type: str):
-        with open(file, "rb") as f:
-            r = self.s.post(f"{self.url}/storage/v1/object/{bucket}/{path}", data=f, timeout=180,
-                            headers={"Content-Type": content_type, "x-upsert": "true"})
+        r = self._richiesta("POST", f"{self.url}/storage/v1/object/{bucket}/{path}", data=Path(file).read_bytes(),
+                            timeout=180, headers={"Content-Type": content_type, "x-upsert": "true"})
         if r.status_code >= 300:
             raise RuntimeError(f"Supabase upload {path}: HTTP {r.status_code} {r.text[:300]}")
 
