@@ -31,3 +31,9 @@ def test_input():
     assert i["locationQuery"] == "Verona" and i["operation"] == "sale" and i["maxResults"] == 3000
     c = ap.input_actor(cfg, "casa")
     assert c["locationSlugs"] == ["verona"] and c["transaction"] == "sale" and c["priceMin"] == 30000
+
+
+def test_casa_pagine_max_80():
+    cfg = load_config()
+    cfg["portali_apify"] = {"casa": {"max_pagine": 200}}
+    assert ap.input_actor(cfg, "casa")["maxPagesPerTask"] == 80
