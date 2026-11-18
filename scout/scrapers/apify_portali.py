@@ -19,6 +19,7 @@ import requests
 from ..models import Listing
 from ..normalize import num, piano, si_no
 from .apify_immobiliare import ApifyErrore, _g, esegui_actor, token
+from .base import fasce_prezzo
 
 log = logging.getLogger(__name__)
 
@@ -29,7 +30,11 @@ PORTALI = {
 _PRIVATO = re.compile(r"privat|owner|particular", re.I)
 
 
-def input_actor(cfg: dict, portale: str) -> dict:
+# Casa.it mostra al massimo circa 380 annunci per ricerca: la ricerca si spezza in fasce di prezzo
+TETTO_CASA = 370
+
+
+def input_actor(cfg: dict, portale: str, fascia: tuple | None = None) -> dict:
     t = cfg["territorio"]
     p = (cfg.get("portali_apify") or {}).get(portale) or {}
     f = cfg.get("scraping", {}).get("filtri", {})
@@ -43,10 +48,11 @@ def input_actor(cfg: dict, portale: str) -> dict:
            "transaction": "sale", "propertyType": p.get("tipologia", "all"),
            "maxListings": max_, "maxPagesPerTask": min(int(p.get("max_pagine", 80)), 80), "proxyConfiguration": proxy,
            "sort": "latest", "maxRetries": 10}
-    if f.get("prezzo_min"):
-        out["priceMin"] = int(f["prezzo_min"])
-    if f.get("prezzo_max"):
-        out["priceMax"] = int(f["prezzo_max"])
+    lo, hi = fascia if fascia else (f.get("prezzo_min"), f.get("prezzo_max"))
+    if lo:
+        out["priceMin"] = int(lo)
+    if hi:
+        out["priceMax"] = int(hi)
     return out
 
 
@@ -88,16 +94,29 @@ def scrape(cfg: dict, portale: str) -> tuple[list[Listing], bool]:
         log.error("%s: manca il token Apify (apify.token in config.local.yaml)", portale)
         return [], False
     p = (cfg.get("portali_apify") or {}).get(portale) or {}
-    inp = input_actor(cfg, portale)
-    try:
-        righe = esegui_actor(tok, p.get("attore", PORTALI[portale]["attore"]), inp,
-                             int(p.get("attesa_max_min", 60)) * 60, run_id=os.environ.get("SCOUT_APIFY_RUN"))
-    except (ApifyErrore, requests.RequestException) as e:
-        log.error("%s: %s", portale, e)
-        return [], False
+    run_id = os.environ.get("SCOUT_APIFY_RUN")
+    # Casa.it: una run per fascia di prezzo (con il recupero di una run pagata, solo quella)
+    fasce = fasce_prezzo(cfg) if portale == "casa" and not run_id and p.get("fasce", True) else [None]
+    righe_tutte, completa = [], True
+    for fascia in fasce:
+        inp = input_actor(cfg, portale, fascia)
+        try:
+            righe = esegui_actor(tok, p.get("attore", PORTALI[portale]["attore"]), inp,
+                                 int(p.get("attesa_max_min", 60)) * 60, run_id=run_id)
+        except (ApifyErrore, requests.RequestException) as e:
+            log.error("%s: %s", portale, e)
+            completa = False
+            continue
+        max_ = inp.get("maxResults") or inp.get("maxListings") or 0
+        tetto = TETTO_CASA if portale == "casa" else max_
+        if getattr(righe, "parziale", False) or len(righe) >= min(max_, tetto):
+            completa = False
+            if fascia:
+                log.warning("%s: fascia %s-%s € arrivata al limite (%d annunci): restringere le fasce di prezzo",
+                            portale, *(int(x) if x else "" for x in fascia), len(righe))
+        righe_tutte += righe
+    righe = righe_tutte
     res = {l.uid: l for l in (a_listing(r, portale) for r in righe if isinstance(r, dict)) if l}
-    max_ = inp.get("maxResults") or inp.get("maxListings") or 0
-    completa = not getattr(righe, "parziale", False) and len(righe) < max_
     log.info("%s: %d righe, %d annunci in vendita (privati: %d)%s", portale, len(righe), len(res),
              sum(l.privato is True for l in res.values()), "" if completa else " - elenco parziale")
     return list(res.values()), completa and bool(res)
