@@ -37,3 +37,8 @@ def test_casa_pagine_max_80():
     cfg = load_config()
     cfg["portali_apify"] = {"casa": {"max_pagine": 200}}
     assert ap.input_actor(cfg, "casa")["maxPagesPerTask"] == 80
+
+
+def test_casa_tutte_le_tipologie():
+    c = ap.input_actor(load_config(), "casa")
+    assert c["propertyType"] == "all" and c["maxRetries"] == 10

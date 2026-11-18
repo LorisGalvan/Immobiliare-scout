@@ -40,8 +40,9 @@ def input_actor(cfg: dict, portale: str) -> dict:
                 "locationQuery": p.get("luogo") or t["comune"], "maxResults": max_,
                 "fetchDetails": bool(p.get("descrizione", True)), "proxyConfiguration": proxy}
     out = {"locationSlugs": [p.get("slug") or t.get("slug_immobiliare") or t["comune"].lower()],
-           "transaction": "sale", "propertyType": "apartment",
-           "maxListings": max_, "maxPagesPerTask": min(int(p.get("max_pagine", 80)), 80), "proxyConfiguration": proxy}
+           "transaction": "sale", "propertyType": p.get("tipologia", "all"),
+           "maxListings": max_, "maxPagesPerTask": min(int(p.get("max_pagine", 80)), 80), "proxyConfiguration": proxy,
+           "sort": "latest", "maxRetries": 10}
     if f.get("prezzo_min"):
         out["priceMin"] = int(f["prezzo_min"])
     if f.get("prezzo_max"):
