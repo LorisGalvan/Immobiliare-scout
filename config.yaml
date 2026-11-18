@@ -56,6 +56,7 @@ scraping:
     pvp: true              # Portale Vendite Pubbliche (aste giudiziarie ufficiali): vedi aste_pvp
     immobiliare_apify: false   # Immobiliare tramite Apify (a pagamento, serve il token): vedi sezione apify
     facebook_apify: false      # Facebook Marketplace tramite Apify (a pagamento): vedi sezione facebook
+    wikicasa_apify: false      # Wikicasa tramite Apify (molti privati, a pagamento): vedi sezione wikicasa
   # Dettaglio annuncio (descrizione completa, data, ascensore...) solo per
   # occasioni e candidati frazionamento, per limitare le richieste.
   scarica_dettaglio: true
@@ -70,6 +71,14 @@ apify:
   includi_aste: true    # cerca anche nella sezione aste di Immobiliare
   descrizione: true     # testo completo: serve per aste, frazionabili e mq mancanti
   attesa_max_min: 60
+
+# Wikicasa tramite Apify: molti annunci di privati. Circa 3 $ ogni 1.000 annunci.
+wikicasa:
+  attore: stealth_mode/wikicasa-property-search-scraper
+  slug: verona            # https://www.wikicasa.it/vendita-case/verona/
+  pagine: 8                 # pagine di elenco lette (circa 25 annunci l'una): 8 = giro di prova
+  annunci_per_pagina: 30
+  attesa_max_min: 30
 
 # Facebook Marketplace tramite Apify: soprattutto privati che vendono senza agenzia.
 # Stesso token di Apify. Circa 15 $ ogni 1.000 annunci: 100 annunci = circa 1,50 $.

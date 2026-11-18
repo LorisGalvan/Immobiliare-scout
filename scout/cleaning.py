@@ -132,7 +132,7 @@ def sono_doppioni(a: Listing, b: Listing, cfg: dict) -> bool:
     return False
 
 
-PRIORITA = {"pvp": -1, "immobiliare": 0, "idealista": 1, "casa": 2, "subito": 3, "facebook": 4, "excel": 9}
+PRIORITA = {"pvp": -1, "immobiliare": 0, "idealista": 1, "casa": 2, "wikicasa": 2, "subito": 3, "facebook": 4, "excel": 9}
 
 
 def unisci_doppioni(listings: list[Listing], cfg: dict) -> list[Listing]:

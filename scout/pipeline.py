@@ -14,7 +14,7 @@ from .geo.geocode import Geocoder
 from .geo.microzones import MicrozoneSet
 from .mappa import mappa_analisi
 from .models import Listing
-from .scrapers import apify_facebook, apify_immobiliare, idealista, immobiliare, pvp, subito
+from .scrapers import apify_facebook, apify_immobiliare, apify_wikicasa, idealista, immobiliare, pvp, subito
 from .scrapers.base import PoliteClient
 from .storage import Storage
 
@@ -73,6 +73,10 @@ def scrape_tutto(cfg, storage: Storage, zone: MicrozoneSet, siti: list[str] | No
             # Immobiliare tramite Apify: gli annunci restano "immobiliare:<id>" (stesso storico delle pagine salvate)
             res, completa = apify_immobiliare.scrape(cfg)
             risultati[sito] = ingest(cfg, storage, res, zone, "immobiliare", completa)
+            continue
+        if sito == "wikicasa_apify":
+            res, completa = apify_wikicasa.scrape(cfg)
+            risultati[sito] = ingest(cfg, storage, res, zone, "wikicasa", completa)
             continue
         if sito == "facebook_apify":
             res, completa = apify_facebook.scrape(cfg)

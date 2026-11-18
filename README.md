@@ -187,6 +187,13 @@ Se va bene, `scraping.siti.facebook_apify: true`.
 Se la connessione cade mentre il bot aspetta Apify, il giro su Apify continua: `RECUPERA_APIFY.bat` ne scarica
 i risultati (chiede il codice "run") senza rifarlo e senza pagare di nuovo. Gli annunci di privati di tutte le fonti sono nella pagina **Privati** del sito.
 
+### 4.1d Wikicasa tramite Apify (privati)
+
+Wikicasa ha molti annunci di privati (pubblicare è gratis). L'actor `stealth_mode/wikicasa-property-search-scraper`
+costa circa 3 $ ogni 1.000 annunci. Doppio clic su `PROVA_WIKICASA.bat`: legge le prime 8 pagine di
+`https://www.wikicasa.it/vendita-case/verona/` (`wikicasa.pagine`). Gli annunci senza agenzia finiscono nella pagina **Privati**.
+Se va bene, `scraping.siti.wikicasa_apify: true` e alza `wikicasa.pagine`.
+
 ### 4.2 Semi-manuale (se un sito blocca, e per Idealista)
 
 1. Apri nel browser la ricerca (puoi usare i link in riga 1-3 dei fogli microzona dell'Excel generato).
