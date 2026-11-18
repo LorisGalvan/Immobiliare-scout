@@ -116,3 +116,46 @@ def test_giorni_online(tmp_path):
     st.commit()
     df = analizza_e_esporta(cfg, st, zone, alert=False)["df"]
     assert df["giorni_online"].notna().all() and (df["giorni_online"] > 300).all()
+
+
+def test_aste_fuori_dalla_valutazione(tmp_path):
+    """Le aste lette dal testo non entrano nelle mediane e finiscono nel foglio Aste,
+    confrontate con il mercato libero della loro microzona."""
+    cfg = _cfg(tmp_path)
+    zone = MicrozoneSet.load(cfg["microzone"]["file"])
+    st = Storage(cfg["database"])
+    rnd = random.Random(7)
+    ann = _annunci(zone, rnd)
+    z0 = zone.zone[0]
+    lat, lon = _punto_in(z0, rnd)
+    asta = Listing(source="immobiliare", source_id="ASTA1", url="https://example/asta", mq=60, lat=lat, lon=lon,
+                   prezzo=60000, titolo="Appartamento all'asta",
+                   descrizione="Tribunale di Verona R.G.E. 45/2025. Prezzo base € 80.000, offerta minima € 60.000. "
+                               "Data asta 15/01/2027.")
+    lat, lon = _punto_in(z0, rnd)
+    dubbio = Listing(source="subito", source_id="D1", url="https://example/d1", mq=70, lat=lat, lon=lon,
+                     prezzo=150000, titolo="Trilocale", descrizione="Possibile anche tramite asta, chiedere info. 70 mq")
+    ingest(cfg, st, ann + [asta], zone, "immobiliare", True)
+    ingest(cfg, st, [dubbio], zone, "subito", True)
+    r = analizza_e_esporta(cfg, st, zone, alert=False)
+    df, aste = r["df"], r["aste"]
+    assert "immobiliare:ASTA1" not in set(df["uid"]) and "subito:D1" not in set(df["uid"])
+    a = aste.set_index("uid").loc["immobiliare:ASTA1"]
+    assert a["tipo_vendita"] == "asta" and a["microzona"] == z0.nome
+    assert a["prezzo_base"] == 80000 and a["offerta_minima"] == 60000 and a["data_asta"] == "2027-01-15"
+    assert a["scostamento_pct"] < -40 and a["base_confronto"].startswith("fascia")
+    assert aste.set_index("uid").loc["subito:D1", "tipo_vendita"] == "possibile_asta"
+    # il motivo resta salvato nel database
+    mot = st.conn.execute("SELECT motivo_scarto, tipo_vendita FROM annunci WHERE uid='immobiliare:ASTA1'").fetchone()
+    assert mot["motivo_scarto"].startswith("asta") and mot["tipo_vendita"] == "asta"
+    wb = openpyxl.load_workbook(r["excel"])
+    assert "Aste" in wb.sheetnames and wb["Aste"]["A3"].value == "Tipo"
+
+
+def test_mq_letti_dal_testo(tmp_path):
+    from scout.cleaning import mq_dal_testo, valida
+    assert mq_dal_testo("Bilocale di 65 mq con giardino di 200 mq e cantina 8 mq") == 65
+    l = Listing(source="subito", source_id="X", prezzo=120000, mq=None, lat=45.44, lon=10.98,
+                titolo="Bilocale 58 mq zona stadio")
+    ok, _ = valida(l, load_config())
+    assert ok and l.mq == 58 and "mq letti dal testo" in l.flags

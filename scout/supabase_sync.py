@@ -26,13 +26,16 @@ COL_ANNUNCI = ["uid", "source", "url", "titolo", "descrizione", "prezzo", "mq", 
                "scostamento_grezzo_pct", "base_confronto", "coeff", "occasione", "giorni_online",
                "ribasso_pct", "prezzo_iniziale", "first_seen", "last_seen", "attivo", "removed_at",
                "flags", "doppioni", "zona_omi", "omi_min", "omi_max"]
+# colonne della migrazione 003 (aste): se il database non le ha ancora, si pubblica senza
+COL_ASTE = ["tipo_vendita", "indizi_vendita", "prezzo_base", "offerta_minima", "data_asta",
+            "scostamento_minima_pct", "valore_mercato", "diritto", "occupazione"]
 COL_MEDIANE = ["microzona", "fascia", "n", "mediana_mq", "media_mq", "mediana_zona", "n_zona"]
 COL_FRAZ = ["uid", "n_unita", "mq_unita", "mediana_piccole_mq", "n_campione_piccole", "valore_post",
             "costo_lavori", "costo_impianti_oneri", "costi_transazione", "costi_totali", "margine",
             "margine_pct", "indizi", "punteggio_indizi"]
 INTERI = {"bagni", "locali", "giorni_online", "n", "n_zona", "n_unita", "n_campione_piccole", "punteggio_indizi"}
 BOOL = {"ascensore", "privato", "occasione", "attivo"}
-DATE = {"data_pubblicazione", "first_seen", "last_seen", "removed_at"}
+DATE = {"data_pubblicazione", "first_seen", "last_seen", "removed_at", "data_asta"}
 
 
 def _clean(v, col=None):
@@ -71,7 +74,7 @@ def righe(df: pd.DataFrame, cols: list[str], extra: dict) -> list[dict]:
     out = []
     for rec in df.to_dict("records"):
         r = {c: _clean(rec.get(c), c) for c in cols}
-        for k in ("flags", "doppioni"):
+        for k in ("flags", "doppioni", "indizi_vendita"):
             if k in r and not isinstance(r[k], list):
                 r[k] = []
         r.update(extra)
@@ -82,7 +85,13 @@ def righe(df: pd.DataFrame, cols: list[str], extra: dict) -> list[dict]:
 def costruisci_payload(cfg, storage, risultato: dict, zone, run_id: str) -> dict:
     terr = cfg["territorio"]["nome"]
     df, med, fraz = risultato["df"], risultato["med"], risultato["fraz"]
-    ann = righe(df, COL_ANNUNCI, {"territorio": terr, "run_id": run_id})
+    ann = righe(df, COL_ANNUNCI + COL_ASTE, {"territorio": terr, "run_id": run_id})
+    for a in ann:
+        a["tipo_vendita"] = a.get("tipo_vendita") or "compravendita"
+    aste = risultato.get("aste")
+    if aste is not None and not aste.empty:
+        # le aste vanno nella stessa tabella ma non sono mai "occasioni" del mercato libero
+        ann += [{**a, "occasione": False} for a in righe(aste, COL_ANNUNCI + COL_ASTE, {"territorio": terr, "run_id": run_id})]
     uids = {a["uid"] for a in ann}
     prezzi = [{"uid": r["uid"], "data": r["data"], "prezzo": r["prezzo"]}
               for r in storage.conn.execute("SELECT uid, data, prezzo FROM prezzi").fetchall()
@@ -171,7 +180,16 @@ def pubblica(cfg, storage, risultato: dict, zone) -> bool:
     sb.delete("zone", {"territorio": f"eq.{terr}", "nome": "not.in.(" + ",".join(
         '"' + z["nome"].replace('"', '""') + '"' for z in p["zone"]) + ")"} if p["zone"] else
         {"territorio": f"eq.{terr}"})
-    sb.upsert("annunci", p["annunci"], "uid")
+    try:
+        sb.upsert("annunci", p["annunci"], "uid")
+    except RuntimeError as e:
+        if not any(c in str(e) for c in COL_ASTE):
+            raise
+        log.warning("Il database del sito non ha ancora le colonne delle aste: esegui una volta "
+                    "supabase/migrazione_003_aste.sql nel SQL Editor di Supabase. Per ora pubblico senza le aste.")
+        p["annunci"] = [{k: v for k, v in a.items() if k not in COL_ASTE} for a in p["annunci"]
+                        if (a.get("tipo_vendita") or "compravendita") == "compravendita"]
+        sb.upsert("annunci", p["annunci"], "uid")
     sb.delete("annunci", {"territorio": f"eq.{terr}", "run_id": f"neq.{run_id}"})
     sb.upsert("prezzi", p["prezzi"], "uid,data")
     sb.upsert("mediane", p["mediane"], "territorio,microzona,fascia")

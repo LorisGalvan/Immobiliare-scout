@@ -46,3 +46,18 @@ def test_idealista():
 def test_importa_html_cartella():
     ls = importa_html(FIX)
     assert {l.source for l in ls} == {"immobiliare", "subito", "idealista", "casa"}
+
+
+def test_fasce_prezzo_coprono_tutto():
+    from scout.config import load_config
+    from scout.scrapers import immobiliare, subito
+    from scout.scrapers.base import fasce_prezzo
+    cfg = load_config()
+    fz = fasce_prezzo(cfg)
+    f = cfg["scraping"]["filtri"]
+    assert fz[0][0] == f["prezzo_min"] and fz[-1][1] == f["prezzo_max"] and len(fz) > 3
+    assert all(a[1] == b[0] for a, b in zip(fz, fz[1:]))       # contigue, nessun buco
+    assert "prezzoMinimo=100000" in immobiliare.search_url(cfg, 2, None, fz[1])
+    assert "ps=100000" in subito.search_url(cfg, 1, "appartamenti", fz[1])
+    cfg["scraping"]["fasce_prezzo"] = []
+    assert fasce_prezzo(cfg) == [(f["prezzo_min"], f["prezzo_max"])]

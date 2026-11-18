@@ -18,7 +18,7 @@ export default function Annuncio() {
   const { dataset, valutazioni, ricaricaValutazioni } = useData();
   const { utente } = useAuth();
   const [storia, setStoria] = useState<Prezzo[]>([]);
-  const a = dataset?.annunci.find((x) => x.uid === uid);
+  const a = dataset?.annunci.find((x) => x.uid === uid) ?? dataset?.aste.find((x) => x.uid === uid);
   const fr = dataset?.frazionabili.find((x) => x.uid === uid);
   const mie = valutazioni.find((v) => v.uid === uid && v.user_id === utente?.id);
   const altre = valutazioni.filter((v) => v.uid === uid && v.user_id !== utente?.id);
@@ -58,6 +58,12 @@ export default function Annuncio() {
         </div>
         <a href={a.url} target="_blank" rel="noreferrer" className="btn-primary"><Icona d={ICONE.link} className="h-4 w-4" />Apri su {FONTE[a.source] ?? a.source}</a>
       </div>
+      {(a.tipo_vendita === "asta" || a.tipo_vendita === "possibile_asta") && (
+        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">
+          <b>{a.tipo_vendita === "asta" ? "Asta giudiziaria" : "Possibile asta, da verificare"}</b>: esclusa dalla valutazione del territorio.
+          {!!a.indizi_vendita?.length && <> Indizi nel testo: {a.indizi_vendita.join(", ")}.</>}
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">

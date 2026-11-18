@@ -7,7 +7,7 @@ Il bot:
 1. gestisce le **microzone come poligoni GeoJSON**: le importa dai tuoi Excel (decodifica `vrt` di Immobiliare, `shape` di Idealista e `geopolygon` di Casa.it) oppure le propone in automatico da OpenStreetMap;
 2. scarica gli annunci da **Immobiliare.it** e **Subito.it** (Idealista in fase 2, Facebook semi-manuale) con un modulo per sito, a ritmo lento, con retry e gestione dei blocchi;
 3. assegna ogni annuncio alla microzona (point-in-polygon, con geocoding dell'indirizzo se mancano le coordinate);
-4. pulisce i dati (mq assurdi, aste, nude proprietà...), segnala i dati dubbi e unisce i doppioni tra siti e agenzie;
+4. pulisce i dati (mq assurdi, nude proprietà...), riconosce dal testo le aste giudiziarie e le tiene a parte, segnala i dati dubbi e unisce i doppioni tra siti e agenzie;
 5. calcola la **mediana €/mq per microzona e fascia** (30/50, 50/70, 70/100, 100+) e lo **scostamento %** di ogni annuncio, con correzioni opzionali per piano/ascensore/stato e confronto con le quotazioni OMI;
 6. tiene lo **storico su SQLite**: ribassi di prezzo, giorni online, annunci rimossi;
 7. produce un **Excel** con un foglio per microzona nello stesso formato dei tuoi file, più i fogli *Occasioni*, *Frazionabili*, *Ribassi*;
@@ -79,7 +79,7 @@ Tutto è nel file `config.yaml`, commentato riga per riga. Le sezioni principali
 | `territorio` | comune e "slug" usati negli URL dei siti |
 | `microzone` | file GeoJSON dei poligoni, tolleranza sul confine |
 | `scraping` | pause tra richieste (default 6–14 s), retry, siti attivi, filtri prezzo/mq, modalità `comune` o `microzone` |
-| `pulizia` | mq/€/mq accettabili, parole che escludono (nuda proprietà, asta...) o che rendono un annuncio "dubbio" |
+| `pulizia` | mq/€/mq accettabili, parole che escludono (nuda proprietà, posto auto...); le aste non vanno qui, le riconosce il bot dal testo o che rendono un annuncio "dubbio" |
 | `analisi` | fasce mq, campione minimo, **soglia occasione (default -15%)**, coefficienti di correzione, OMI |
 | `frazionamento` | soglia mq, mq per unità, costi (lavori/mq, impianti, oneri, spese tecniche, notaio, provvigioni), margine minimo |
 | `alert` | Telegram ed email |
@@ -157,6 +157,8 @@ python -m scout scrape --siti immobiliare     # un solo sito
 - **Modalità `microzone`**: una ricerca a poligono (`vrt`) per ogni microzona, come facevi a mano. Più richieste.
 - Pausa casuale tra le richieste, retry con backoff esponenziale, rispetto di `robots.txt`.
 - Se un sito risponde con blocchi (403/429/captcha) per `stop_dopo_blocchi` volte, il bot **smette di interrogarlo** per quella esecuzione. In quel caso non segna come "rimossi" gli annunci non visti (l'elenco è incompleto).
+- **Fasce di prezzo** (`scraping.fasce_prezzo`): i portali mostrano solo un numero limitato di pagine per ricerca, quindi la ricerca del comune viene spezzata in fasce di prezzo per arrivare a tutti gli annunci. Lista vuota `[]` = una ricerca unica.
+- Se manca il campo mq, il bot li cerca nel testo (`pulizia.mq_dal_testo`), ignorando giardini, cantine, terrazzi e box.
 - Per Immobiliare scarica la scheda di dettaglio (descrizione completa, data, ascensore) solo per i candidati più interessanti (grandi o con €/mq basso), max `max_dettagli_per_run`.
 
 ### 4.2 Semi-manuale (se un sito blocca, e per Idealista)
@@ -237,6 +239,30 @@ Nella cartella `output/`:
    (es. `"1 Borgo Trento m1": C12`).
 
 Nell'Excel compaiono il valore OMI medio e lo scostamento rispetto a OMI.
+
+### Aste giudiziarie
+
+Ogni annuncio viene letto (titolo, descrizione, tipologia, inserzionista) da `scout/tipo_vendita.py`:
+
+- **asta**: almeno un indizio forte (R.G.E., prezzo base, offerta minima, delegato alla vendita, custode/IVG,
+  "all'asta", procedura fallimentare, data dell'asta...) oppure più indizi deboli;
+- **possibile asta**: un solo indizio debole (la parola "asta" da sola, pignoramento, agenzia specializzata);
+- **compravendita**: tutto il resto. Le frasi che negano ("non è un'asta", "no aste") e parole come "vasta" vengono ignorate.
+
+Aste e possibili aste **non entrano nelle mediane**: finiscono nel foglio Excel **Aste** e nella pagina **Aste** del sito,
+confrontate con il mercato libero della loro microzona e fascia, con prezzo base, offerta minima e data letti dal testo.
+Sul sito serve una volta `supabase/migrazione_003_aste.sql` (SQL Editor di Supabase); senza, il bot pubblica solo le compravendite.
+
+**Portale delle Vendite Pubbliche (PVP).** Per avere l'elenco completo delle aste, il bot legge anche
+[pvp.giustizia.it](https://pvp.giustizia.it), dove per legge va pubblicata ogni vendita giudiziaria
+(`scraping.siti.pvp: true`, impostazioni in `aste_pvp`). I lotti del PVP vanno solo nella sezione Aste.
+Se lo stesso lotto è anche su Immobiliare o altri portali, resta una riga sola, quella del PVP, con gli altri link
+in "Stesso lotto anche su". Per ogni asta il bot legge anche il **diritto** venduto (piena proprietà, quota, nuda
+proprietà, usufrutto) e se l'immobile è **libero o occupato**.
+
+Il servizio di ricerca del PVP non è documentato e il bot non è ancora stato provato sul sito vero:
+se nel log compare "PVP: il servizio di ricerca non risponde come previsto", apri la ricerca sul PVP nel browser
+(Verona, immobili), salvala con Ctrl+S in `pagine_salvate/` e lancia `importa-html` come per Immobiliare.
 
 ---
 

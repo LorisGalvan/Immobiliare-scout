@@ -16,6 +16,10 @@ interface DemoFile {
 let demoCache: Promise<DemoFile> | null = null;
 const demo = (): Promise<DemoFile> => (demoCache ??= fetch("./demo.json").then((r) => r.json() as Promise<DemoFile>));
 
+const eAsta = (a: Annuncio) => a.tipo_vendita === "asta" || a.tipo_vendita === "possibile_asta";
+/** Separa le aste dalle compravendite: le aste non entrano in mediane, occasioni e mappa. */
+const dividi = (tutti: Annuncio[]) => ({ annunci: tutti.filter((a) => !eAsta(a)), aste: tutti.filter(eAsta) });
+
 // ---------------------------------------------------------------- Supabase
 async function tutte<T>(table: string, filtro: (q: any) => any, cols = "*"): Promise<T[]> {
   const out: T[] = [];
@@ -38,22 +42,24 @@ export async function territori(): Promise<string[]> {
 export async function caricaDataset(territorio: string): Promise<Dataset> {
   if (DEMO) {
     const d = await demo();
+    const { annunci, aste } = dividi(d.annunci);
     return {
       territorio: d.territorio,
       zone: d.zone,
-      annunci: d.annunci,
+      annunci,
+      aste,
       mediane: d.mediane,
       frazionabili: d.frazionabili,
       soglia: d.soglia_occasione_pct,
       fasce: d.fasce,
       ultimaEsecuzione: {
-        territorio: d.territorio, ts: d.generato, annunci: d.annunci.length,
-        occasioni: d.annunci.filter((a) => a.occasione).length, frazionabili: d.frazionabili.length, report_xlsx: null,
+        territorio: d.territorio, ts: d.generato, annunci: annunci.length,
+        occasioni: annunci.filter((a) => a.occasione).length, frazionabili: d.frazionabili.length, report_xlsx: null,
       },
     };
   }
   const eq = (q: any) => q.eq("territorio", territorio);
-  const [zone, annunci, mediane, frazionabili, esec] = await Promise.all([
+  const [zone, tutti, mediane, frazionabili, esec] = await Promise.all([
     tutte<Zona>("zone", (q) => eq(q).order("ordine")),
     tutte<Annuncio>("annunci", eq),
     tutte<Mediana>("mediane", eq),
@@ -61,8 +67,9 @@ export async function caricaDataset(territorio: string): Promise<Dataset> {
     supabase!.from("esecuzioni").select("*").eq("territorio", territorio).order("ts", { ascending: false }).limit(1),
   ]);
   const ult = (esec.data?.[0] as Esecuzione) ?? null;
+  const { annunci, aste } = dividi(tutti);
   return {
-    territorio, zone, annunci, mediane, frazionabili, ultimaEsecuzione: ult,
+    territorio, zone, annunci, aste, mediane, frazionabili, ultimaEsecuzione: ult,
     soglia: -15, fasce: ["30/50", "50/70", "70/100", "100+"],
   };
 }

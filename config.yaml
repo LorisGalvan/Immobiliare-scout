@@ -41,6 +41,10 @@ scraping:
   # "microzone": una ricerca per ogni poligono (più precisa, più richieste)
   modalita: comune
   max_pagine: 40
+  # I portali mostrano solo un certo numero di pagine per ricerca: spezzando la ricerca del comune
+  # in fasce di prezzo si arriva a TUTTI gli annunci invece dei primi ~1.000-2.000.
+  # Lista vuota [] = una ricerca unica come prima.
+  fasce_prezzo: [100000, 150000, 200000, 250000, 320000, 420000, 600000]
   filtri:
     prezzo_min: 30000
     prezzo_max: 1500000
@@ -49,10 +53,22 @@ scraping:
     immobiliare: false     # blocca le richieste automatiche (403): usare le pagine salvate in pagine_salvate/
     subito: true
     idealista: false       # attivare in fase 2 (blocchi anti-bot frequenti)
+    pvp: true              # Portale Vendite Pubbliche (aste giudiziarie ufficiali): vedi aste_pvp
   # Dettaglio annuncio (descrizione completa, data, ascensore...) solo per
   # occasioni e candidati frazionamento, per limitare le richieste.
   scarica_dettaglio: true
   max_dettagli_per_run: 40
+
+# Portale delle Vendite Pubbliche (pvp.giustizia.it): elenco ufficiale di tutte le aste.
+# I lotti vanno solo nella sezione Aste, mai nelle mediane del mercato libero.
+aste_pvp:
+  # servizio di ricerca usato dal sito del PVP (non documentato: se cambia, il bot lo dice nel log
+  # e si salvano le pagine di ricerca dal browser in pagine_salvate/)
+  api_url: "https://pvp.giustizia.it/ric-496b258c-986a1b71/ric-ms/ricerca/vendite"
+  raggio_km: 0          # 0 = solo il comune del territorio
+  per_pagina: 50
+  max_pagine: 20
+  categorie: []         # vuoto = tutte le categorie di immobili (le non residenziali le scarta la pulizia)
 
 geocoding:
   attivo: true
@@ -67,15 +83,16 @@ pulizia:
   mq_max: 1000
   prezzo_mq_min: 300       # sotto: dato dubbio (asta, nuda proprietà, errore)
   prezzo_mq_max: 15000
+  # Le aste NON vanno messe qui: le riconosce il bot leggendo il testo (scout/tipo_vendita.py),
+  # le toglie dalla valutazione e le elenca a parte (foglio e pagina "Aste").
+  mq_dal_testo: true       # se manca il campo mq, li cerca nel testo dell'annuncio
   parole_escludi:          # annunci scartati se il titolo/descrizione contiene...
     - nuda proprietà
-    - asta giudiziaria
-    - all'asta
     - multiproprietà
+  parole_escludi_titolo:   # scartati solo se nel TITOLO o nella tipologia (es. "con box auto" nella descrizione va bene)
     - posto auto
     - box auto
   parole_dubbie:           # tenuti ma segnalati
-    - asta
     - affittato
     - a reddito
     - usufrutto

@@ -28,6 +28,7 @@ export const FONTE: Record<string, string> = {
   subito: "Subito.it",
   idealista: "Idealista",
   casa: "Casa.it",
+  pvp: "Portale Vendite Pubbliche",
   facebook: "Facebook",
   excel: "Storico Excel",
 };

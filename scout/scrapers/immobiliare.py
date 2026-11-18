@@ -13,7 +13,7 @@ import urllib.parse
 from ..geo.polygons import immobiliare_search_url
 from ..models import Listing
 from ..normalize import num, piano, si_no, stato
-from .base import BloccatoError, PoliteClient, next_data, walk
+from .base import BloccatoError, PoliteClient, fasce_prezzo, next_data, walk
 
 log = logging.getLogger(__name__)
 SOURCE = "immobiliare"
@@ -21,7 +21,7 @@ BASE = "https://www.immobiliare.it"
 
 
 # ------------------------------------------------------------------ URL
-def search_url(cfg: dict, page: int = 1, poligono=None) -> str:
+def search_url(cfg: dict, page: int = 1, poligono=None, fascia: tuple | None = None) -> str:
     t = cfg["territorio"]
     f = cfg.get("scraping", {}).get("filtri", {})
     if poligono:
@@ -34,10 +34,11 @@ def search_url(cfg: dict, page: int = 1, poligono=None) -> str:
         url = f"{BASE}/vendita-case/{t.get('slug_immobiliare', 'verona')}/?" + urllib.parse.urlencode(q)
         sep = "&"
     extra = {}
-    if f.get("prezzo_min"):
-        extra["prezzoMinimo"] = int(f["prezzo_min"])
-    if f.get("prezzo_max"):
-        extra["prezzoMassimo"] = int(f["prezzo_max"])
+    pmin, pmax = fascia if fascia else (f.get("prezzo_min"), f.get("prezzo_max"))
+    if pmin:
+        extra["prezzoMinimo"] = int(pmin)
+    if pmax:
+        extra["prezzoMassimo"] = int(pmax)
     if f.get("mq_min"):
         extra["superficieMinima"] = int(f["mq_min"])
     return url + (sep + urllib.parse.urlencode(extra) if extra else "")
@@ -104,7 +105,14 @@ def parse_real_estate(re_: dict, seo: dict | None = None) -> Listing | None:
     if indirizzo and loc.get("streetNumber"):
         indirizzo = f"{indirizzo} {loc['streetNumber']}"
 
+    # vendite all'asta segnalate dal portale (contratto "auction" o campi *auction*)
+    flags = []
+    contratto = str(re_.get("contract") or "").lower()
+    if "auction" in contratto or "asta" in contratto or any(
+            "auction" in k.lower() and v not in (None, False, "", [], {}) for k, v in re_.items()):
+        flags.append("portale: asta")
     return Listing(
+        flags=flags,
         source=SOURCE, source_id=str(rid), url=url,
         titolo=re_.get("title") or (seo or {}).get("title") or "",
         descrizione=p.get("description") or p.get("caption") or "",
@@ -258,11 +266,13 @@ def parse_detail_page(html: str, base: Listing) -> Listing:
 def scrape(cfg: dict, client: PoliteClient, poligoni: dict[str, list] | None = None) -> list[Listing]:
     max_pag = int(cfg.get("scraping", {}).get("max_pagine", 40))
     jobs = [(None, None)] if not poligoni else list(poligoni.items())
+    # la ricerca per comune si spezza in fasce di prezzo (il portale mostra un numero massimo di pagine)
+    fasce = fasce_prezzo(cfg) if not poligoni else [None]
     tutti: dict[str, Listing] = {}
-    for nome, poly in jobs:
+    for (nome, poly), fascia in ((j, fz) for j in jobs for fz in fasce):
         page, tot = 1, None
         while page <= max_pag and (tot is None or page <= tot):
-            url = search_url(cfg, page, poly)
+            url = search_url(cfg, page, poly, fascia)
             try:
                 r = client.get(url)
             except BloccatoError as e:
@@ -278,7 +288,8 @@ def scrape(cfg: dict, client: PoliteClient, poligoni: dict[str, list] | None = N
                 break
             annunci, tot_pag = parse_search_page(r.text)
             tot = tot_pag or tot
-            log.info("Immobiliare %s pag %d/%s: %d annunci", nome or "comune", page, tot, len(annunci))
+            log.info("Immobiliare %s%s pag %d/%s: %d annunci", nome or "comune",
+                     f" {fascia[0] or 0:.0f}-{fascia[1] or 0:.0f}€" if fascia else "", page, tot, len(annunci))
             if not annunci:
                 break
             for a in annunci:

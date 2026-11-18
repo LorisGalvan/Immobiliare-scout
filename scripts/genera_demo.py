@@ -90,8 +90,34 @@ def main():
                 agenzia=None if priv else rnd.choice(AGENZIE), privato=priv,
                 data_pubblicazione=(oggi - dt.timedelta(days=rnd.randint(1, 150))).isoformat(),
                 indirizzo=via, lat=lat, lon=lon, tipologia="Appartamento"))
+    # qualche asta giudiziaria (il bot le riconosce dal testo e le tiene fuori dalle mediane)
+    ra, aste = random.Random(11), []   # generatore a parte: il resto della demo non cambia
+    for i, z in enumerate(ra.sample(zone.zone, 8)):
+        k += 1
+        mq = ra.randint(45, 130)
+        base = round(lv[z.nome] * ra.uniform(0.55, 0.85) * mq, -3)
+        lat, lon = punto(z, rnd)
+        via = f"{ra.choice(VIE)} {ra.randint(1, 90)}"
+        data_asta = (oggi + dt.timedelta(days=ra.randint(10, 90))).strftime("%d/%m/%Y")
+        if i < 6:
+            diritto_txt = "Quota di 1/2 della piena proprietà." if i == 4 else "Piena proprietà 1/1."
+            occ_txt = ra.choice(["Immobile libero.", "Immobile occupato dal debitore esecutato.", ""])
+            desc = (f"Tribunale di Verona, R.G.E. {ra.randint(10, 400)}/2025. {diritto_txt} {occ_txt} "
+                    f"Prezzo base € {base:,.0f}, offerta minima € {base * 0.75:,.0f}. Data asta {data_asta}.").replace(",", ".")
+            tit = f"[DEMO] Appartamento all'asta {mq} mq {via}"
+        else:
+            desc = "Appartamento da sistemare, possibile acquisto anche tramite asta. Chiedere info."
+            tit = f"[DEMO] {mq} mq {via}"
+        src = "pvp" if i < 3 else "immobiliare"
+        aste.append(Listing(source=src, source_id=f"demo{k}",
+                           url="https://pvp.giustizia.it/pvp/" if src == "pvp" else "https://www.immobiliare.it/", titolo=tit,
+                           descrizione=desc, prezzo=round(base * (0.75 if i < 6 else 1), -3), mq=mq, piano="2",
+                           stato="da_ristrutturare", agenzia=("Tribunale di Verona" if src == "pvp" else "Aste Verona (demo)") if i < 6 else ra.choice(AGENZIE),
+                           flags=["portale: asta"] if src == "pvp" else [],
+                           data_pubblicazione=(oggi - dt.timedelta(days=ra.randint(1, 40))).isoformat(),
+                           indirizzo=via, lat=lat, lon=lon, tipologia="Appartamento"))
     # primo passaggio "60 giorni fa", poi ribassi e rimozioni
-    ingest(cfg, st, ann, zone, "immobiliare", False)
+    ingest(cfg, st, ann + aste, zone, "immobiliare", False)  # la fonte qui serve solo per il registro
     st.conn.execute("UPDATE prezzi SET data=?", ((oggi - dt.timedelta(days=60)).isoformat(),))
     st.conn.execute("UPDATE annunci SET first_seen=data_pubblicazione")
     st.commit()
@@ -100,7 +126,7 @@ def main():
             a.prezzo = round(a.prezzo * rnd.uniform(0.88, 0.97), -3)
     rimossi = set(rnd.sample(range(len(ann)), len(ann) // 12))
     vivi = [a for i, a in enumerate(ann) if i not in rimossi]
-    ingest(cfg, st, vivi, zone, "immobiliare", False)
+    ingest(cfg, st, vivi + aste, zone, "immobiliare", False)
     for i in rimossi:
         st.aggiorna_campi(ann[i].uid, attivo=0, removed_at=(oggi - dt.timedelta(days=rnd.randint(1, 50))).isoformat())
     st.commit()
@@ -109,6 +135,7 @@ def main():
     p["demo"] = True
     out = esporta_json(ROOT / "web/public/demo.json", p)
     print(out, len(p["annunci"]), "annunci,", sum(a["occasione"] for a in p["annunci"]), "occasioni,",
+          sum(a.get("tipo_vendita") != "compravendita" for a in p["annunci"]), "aste,",
           len(p["frazionabili"]), "frazionabili")
 
 
