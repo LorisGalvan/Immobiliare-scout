@@ -55,6 +55,8 @@ export interface Annuncio {
   data_asta?: string | null;
   scostamento_minima_pct?: number | null;
   valore_mercato?: number | null;
+  diritto?: string | null;
+  occupazione?: string | null;
 }
 
 export interface Mediana {

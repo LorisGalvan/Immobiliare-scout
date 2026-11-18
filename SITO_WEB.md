@@ -105,6 +105,21 @@ Senza `web/.env.local` il sito parte in **modalità DEMO** con annunci simulati 
 Il file demo contiene i poligoni delle tue microzone: quando il sito è collegato a Supabase **non** viene
 pubblicato (la build lo esclude automaticamente).
 
+## 6. Chat "Chiedi ai dati" (facoltativa)
+
+Il pulsante in basso a destra del sito apre una chat che risponde alle domande sui risultati
+(occasioni, mediane, aste, frazionabili) usando Claude. La chiave di Claude resta su Supabase, mai nel sito.
+
+1. Crea una chiave su [console.anthropic.com](https://console.anthropic.com) (*API Keys*) e imposta un limite di spesa mensile.
+2. Installa la [Supabase CLI](https://supabase.com/docs/guides/cli), poi dalla cartella del progetto:
+   ```bash
+   supabase login
+   supabase link --project-ref <id-del-progetto>        # lo trovi nell'URL di Supabase
+   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+   supabase functions deploy chiedi
+   ```
+3. Fatto: la chat funziona solo per gli utenti che hanno fatto il login. Costo indicativo: pochi centesimi a domanda.
+
 ## Sicurezza in breve
 
 | Cosa | Dove sta | Chi la vede |

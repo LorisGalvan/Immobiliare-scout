@@ -100,19 +100,24 @@ def main():
         via = f"{ra.choice(VIE)} {ra.randint(1, 90)}"
         data_asta = (oggi + dt.timedelta(days=ra.randint(10, 90))).strftime("%d/%m/%Y")
         if i < 6:
-            desc = (f"Tribunale di Verona, R.G.E. {ra.randint(10, 400)}/2025. Piena proprietà 1/1. "
+            diritto_txt = "Quota di 1/2 della piena proprietà." if i == 4 else "Piena proprietà 1/1."
+            occ_txt = ra.choice(["Immobile libero.", "Immobile occupato dal debitore esecutato.", ""])
+            desc = (f"Tribunale di Verona, R.G.E. {ra.randint(10, 400)}/2025. {diritto_txt} {occ_txt} "
                     f"Prezzo base € {base:,.0f}, offerta minima € {base * 0.75:,.0f}. Data asta {data_asta}.").replace(",", ".")
             tit = f"[DEMO] Appartamento all'asta {mq} mq {via}"
         else:
             desc = "Appartamento da sistemare, possibile acquisto anche tramite asta. Chiedere info."
             tit = f"[DEMO] {mq} mq {via}"
-        aste.append(Listing(source="immobiliare", source_id=f"demo{k}", url="https://www.immobiliare.it/", titolo=tit,
+        src = "pvp" if i < 3 else "immobiliare"
+        aste.append(Listing(source=src, source_id=f"demo{k}",
+                           url="https://pvp.giustizia.it/pvp/" if src == "pvp" else "https://www.immobiliare.it/", titolo=tit,
                            descrizione=desc, prezzo=round(base * (0.75 if i < 6 else 1), -3), mq=mq, piano="2",
-                           stato="da_ristrutturare", agenzia="Aste Verona (demo)" if i < 6 else ra.choice(AGENZIE),
+                           stato="da_ristrutturare", agenzia=("Tribunale di Verona" if src == "pvp" else "Aste Verona (demo)") if i < 6 else ra.choice(AGENZIE),
+                           flags=["portale: asta"] if src == "pvp" else [],
                            data_pubblicazione=(oggi - dt.timedelta(days=ra.randint(1, 40))).isoformat(),
                            indirizzo=via, lat=lat, lon=lon, tipologia="Appartamento"))
     # primo passaggio "60 giorni fa", poi ribassi e rimozioni
-    ingest(cfg, st, ann + aste, zone, "immobiliare", False)
+    ingest(cfg, st, ann + aste, zone, "immobiliare", False)  # la fonte qui serve solo per il registro
     st.conn.execute("UPDATE prezzi SET data=?", ((oggi - dt.timedelta(days=60)).isoformat(),))
     st.conn.execute("UPDATE annunci SET first_seen=data_pubblicazione")
     st.commit()

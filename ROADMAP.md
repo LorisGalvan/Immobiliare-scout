@@ -5,6 +5,7 @@
   analisi per microzona e fascia, storico, Excel, mappa, frazionamento, sito web con login (Supabase + GitHub Pages).
 - Aste lette dal testo degli annunci e tenute fuori dalla valutazione (foglio e pagina "Aste");
   ricerca spezzata in fasce di prezzo per superare il limite di pagine dei portali; mq letti dal testo.
+- Aste dal Portale delle Vendite Pubbliche (da provare sul sito vero), con diritto e occupazione; chat "Chiedi ai dati" sul sito.
 
 ## In corso
 - **Editor microzone sul sito** (ramo `editor-zone`): modifica dei confini sulla mappa, nuove zone,

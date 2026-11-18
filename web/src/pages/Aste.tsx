@@ -41,7 +41,7 @@ export default function Aste() {
   if (!dataset) return null;
   return (
     <>
-      <Titolo sotto="Riconosciute leggendo il testo degli annunci. Non entrano nelle mediane: sono confrontate con il mercato libero della loro microzona e fascia.">
+      <Titolo sotto="Dal Portale delle Vendite Pubbliche e dal testo degli annunci. Non entrano nelle mediane: sono confrontate con il mercato libero della loro microzona e fascia.">
         Aste <span className="text-slate-400">({lista.length})</span>
       </Titolo>
       <div className="card mb-4 grid grid-cols-2 gap-3 p-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -101,6 +101,11 @@ export default function Aste() {
                 </div>
                 <div><dt className="text-xs text-slate-400">Confronto</dt><dd className="truncate text-slate-600">{a.base_confronto ?? "–"}</dd></div>
               </dl>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {a.diritto && <span className={`chip ${a.diritto === "piena proprietà" ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>{a.diritto}</span>}
+                {a.occupazione && <span className={`chip ${a.occupazione === "libero" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{a.occupazione}</span>}
+                {!!a.doppioni?.length && <span className="chip bg-slate-100 text-slate-600">anche su {a.doppioni.length} altro/i sito/i</span>}
+              </div>
               {!!a.indizi_vendita?.length && (
                 <div className="mt-2 flex flex-wrap gap-1">
                   {a.indizi_vendita.slice(0, 5).map((i) => <span key={i} className="chip bg-slate-100 text-slate-600">{i}</span>)}

@@ -230,6 +230,7 @@ COL_FRAZ = [
     ("Margine €", "margine", "eur"), ("Margine %", "margine_pct", "pct"),
     ("Indizi testo", "indizi", None), ("Punteggio indizi", "punteggio_indizi", None),
     ("Piano", "piano", None), ("Bagni", "bagni", None), ("Fonte", "source", None), ("Link", "url", None),
+    ("Stesso lotto anche su", "doppioni", None),
 ]
 
 
@@ -240,7 +241,9 @@ COL_ASTE = [
     ("% vs mercato", "scostamento_pct", "pct"), ("Valore di mercato", "valore_mercato", "eur"),
     ("Prezzo base", "prezzo_base", "eur"), ("Offerta minima", "offerta_minima", "eur"),
     ("% offerta minima vs mercato", "scostamento_minima_pct", "pct"), ("Data asta", "data_asta", None),
+    ("Diritto", "diritto", None), ("Occupazione", "occupazione", None),
     ("Indizi nel testo", "indizi_vendita", None), ("Agenzia", "agenzia", None), ("Fonte", "source", None), ("Link", "url", None),
+    ("Stesso lotto anche su", "doppioni", None),
 ]
 
 
@@ -293,9 +296,11 @@ def esporta(path, df: pd.DataFrame, med: pd.DataFrame, fraz: pd.DataFrame, zone_
     if aste is not None and not aste.empty:
         wa.cell(1, 1, "Aste e possibili aste riconosciute dal testo degli annunci: NON entrano nelle mediane. "
                       "'possibile_asta' = un solo indizio, controlla l'annuncio.").font = Font(italic=True)
-        _tabella(wa, aste.assign(indizi_vendita=aste["indizi_vendita"].apply(
-            lambda v: ", ".join(v) if isinstance(v, list) else v)), COL_ASTE, start_row=3)
-        for i, w in enumerate([14, 22, 8, 26, 34, 6, 12, 9, 11, 16, 9, 12, 12, 12, 11, 11, 40, 20, 11, 8], 1):
+        unisci = lambda v: ", ".join(v) if isinstance(v, list) else v  # noqa: E731
+        _tabella(wa, aste.assign(indizi_vendita=aste["indizi_vendita"].apply(unisci),
+                                 doppioni=aste.get("doppioni", pd.Series(dtype=object)).apply(
+                                     lambda v: " | ".join(v) if isinstance(v, list) else v)), COL_ASTE, start_row=3)
+        for i, w in enumerate([14, 22, 8, 26, 34, 6, 12, 9, 11, 16, 9, 12, 12, 12, 11, 11, 16, 16, 40, 20, 11, 8, 40], 1):
             wa.column_dimensions[get_column_letter(i)].width = w
     else:
         wa.cell(1, 1, "Nessuna asta riconosciuta tra gli annunci attivi.")

@@ -9,10 +9,11 @@ import re
 import numpy as np
 import pandas as pd
 
-from .cleaning import unisci_doppioni, valida
+from .cleaning import PRIORITA, _dist_m, _stessa_via, sono_doppioni, unisci_doppioni, valida
 from .models import Listing
 from .normalize import piano_num
 from .storage import CAMPI, Storage
+from .tipo_vendita import diritto, occupazione
 
 log = logging.getLogger(__name__)
 
@@ -203,12 +204,15 @@ def analizza_aste(aste: list, df: pd.DataFrame, med: pd.DataFrame, cfg: dict) ->
     min_n = int(a.get("min_campione", 3))
     usa_norm = corr.get("attive", False)
     righe = []
-    for l, r in aste:
-        d = {**l.to_dict(), "flags": l.flags, "indizi_vendita": l.indizi_vendita,
+    for l, r in _unisci_aste(aste, cfg):
+        d = {**l.to_dict(), "flags": l.flags, "indizi_vendita": l.indizi_vendita, "doppioni": l.doppioni,
              "first_seen": r.get("first_seen"), "last_seen": r.get("last_seen"), "attivo": 1}
-        d["fascia"] = fascia(l.mq, fasce)
+        d["fascia"] = fascia(l.mq, fasce) if l.mq else "mq mancanti"
         d["coeff"] = coefficiente(d, corr)
-        d.update(dati_asta(f"{l.titolo or ''} {l.descrizione or ''}"))
+        testo = f"{l.titolo or ''} {l.descrizione or ''}"
+        d.update(dati_asta(testo))
+        d["diritto"] = diritto(testo) or "da verificare"
+        d["occupazione"] = occupazione(testo)
         rif, base = np.nan, "senza zona"
         if l.microzona and not med.empty:
             m = med[(med["microzona"] == l.microzona) & (med["fascia"] == d["fascia"])]
@@ -222,7 +226,10 @@ def analizza_aste(aste: list, df: pd.DataFrame, med: pd.DataFrame, cfg: dict) ->
             else:
                 base = "campione scarso"
         d["riferimento_mq"], d["base_confronto"] = rif, base
-        valore = d["prezzo_mq"] / d["coeff"] if usa_norm else d["prezzo_mq"]
+        if not l.mq:
+            rif, base = np.nan, "mq mancanti"
+            d["riferimento_mq"], d["base_confronto"] = rif, base
+        valore = (d["prezzo_mq"] / d["coeff"] if usa_norm else d["prezzo_mq"]) if l.mq else np.nan
         d["scostamento_pct"] = (valore / rif - 1) * 100 if rif == rif else np.nan
         if d["offerta_minima"] and l.mq and rif == rif:
             d["scostamento_minima_pct"] = (d["offerta_minima"] / l.mq / d["coeff"] / rif - 1) * 100 if usa_norm \
@@ -233,6 +240,56 @@ def analizza_aste(aste: list, df: pd.DataFrame, med: pd.DataFrame, cfg: dict) ->
         righe.append(d)
     out = pd.DataFrame(righe)
     return out.sort_values(["tipo_vendita", "scostamento_pct"], na_position="last").reset_index(drop=True)
+
+
+def _unisci_aste(aste: list, cfg: dict) -> list:
+    """Lo stesso lotto può comparire sul PVP e su uno o più portali: si tiene una riga sola,
+    preferendo il PVP (fonte ufficiale) e completando i dati mancanti dagli altri.
+    La tolleranza sul prezzo è larga perché un portale mostra il prezzo base e un altro l'offerta minima."""
+    if len(aste) < 2:
+        return [(l, r) for l, r in aste]
+    c = {**cfg, "pulizia": {**cfg.get("pulizia", {}),
+                            "doppioni": {**cfg.get("pulizia", {}).get("doppioni", {}), "tolleranza_prezzo_pct": 30}}}
+    n = len(aste)
+    parent = list(range(n))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    basi = [dati_asta(f"{l.titolo or ''} {l.descrizione or ''}")["prezzo_base"] for l, _ in aste]
+
+    def stesso_lotto(i, j):
+        a, b = aste[i][0], aste[j][0]
+        if a.source == b.source and a.source == "pvp":
+            return False                     # sul PVP ogni lotto è già unico
+        if sono_doppioni(a, b, c):
+            return True
+        # stesso prezzo base e stesso posto (i lotti del PVP spesso non hanno i mq)
+        return bool(basi[i]) and basi[i] == basi[j] and (_stessa_via(a, b) or _dist_m(a, b) <= 150 or
+                                                       (a.microzona is not None and a.microzona == b.microzona))
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            if stesso_lotto(i, j):
+                parent[find(i)] = find(j)
+    gruppi: dict[int, list] = {}
+    for i in range(n):
+        gruppi.setdefault(find(i), []).append(aste[i])
+    out = []
+    for g in gruppi.values():
+        g.sort(key=lambda x: (PRIORITA.get(x[0].source, 5), -len(x[0].descrizione or "")))
+        rep, rr = g[0]
+        rep.doppioni = [f"{x.source}: {x.url} ({x.agenzia or '?'}, {x.prezzo:,.0f}€)" for x, _ in g[1:]]
+        for x, _ in g[1:]:
+            for k in ("mq", "piano", "ascensore", "bagni", "stato", "lat", "lon", "indirizzo", "microzona"):
+                if getattr(rep, k) in (None, "") and getattr(x, k) not in (None, ""):
+                    setattr(rep, k, getattr(x, k))
+            rep.descrizione = f"{rep.descrizione or ''} {x.descrizione or ''}".strip()
+        out.append((rep, rr))
+    return out
 
 
 # ---------------------------------------------------------------------- OMI

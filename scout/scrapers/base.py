@@ -82,6 +82,13 @@ class PoliteClient:
         return False
 
     def get(self, url: str, **kw) -> requests.Response:
+        return self._richiesta("GET", url, **kw)
+
+    def post_json(self, url: str, corpo: dict, **kw) -> requests.Response:
+        """POST con corpo JSON (servizi di ricerca come quello del PVP), stesse regole di GET."""
+        return self._richiesta("POST", url, json=corpo, headers={"Accept": "application/json"}, **kw)
+
+    def _richiesta(self, metodo: str, url: str, **kw) -> requests.Response:
         host = urlparse(url).netloc
         if self.blocchi.get(host, 0) >= self.stop_blocchi:
             raise BloccatoError(f"{host}: troppi blocchi, sito sospeso per questa esecuzione")
@@ -92,7 +99,7 @@ class PoliteClient:
             self._wait(host)
             try:
                 self.richieste += 1
-                r = self.session.get(url, timeout=self.timeout, **kw)
+                r = self.session.request(metodo, url, timeout=self.timeout, **kw)
             except requests.RequestException as e:
                 err = e
                 log.warning("errore rete %s (tentativo %d): %s", url, i + 1, e)

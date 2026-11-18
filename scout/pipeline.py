@@ -14,7 +14,7 @@ from .geo.geocode import Geocoder
 from .geo.microzones import MicrozoneSet
 from .mappa import mappa_analisi
 from .models import Listing
-from .scrapers import idealista, immobiliare, subito
+from .scrapers import idealista, immobiliare, pvp, subito
 from .scrapers.base import PoliteClient
 from .storage import Storage
 
@@ -73,6 +73,8 @@ def scrape_tutto(cfg, storage: Storage, zone: MicrozoneSet, siti: list[str] | No
             res = immobiliare.scrape(cfg, client, poligoni)
         elif sito == "subito":
             res = subito.scrape(cfg, client)
+        elif sito == "pvp":
+            res = pvp.scrape(cfg, client)
         elif sito == "idealista":
             res = idealista.scrape(cfg, client, {z.nome: z.latlon for z in zone.zone})
         else:

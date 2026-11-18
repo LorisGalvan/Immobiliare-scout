@@ -9,19 +9,31 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import json
 import logging
 from pathlib import Path
 
 from .models import Listing
 from .normalize import num, piano, si_no, stato
-from .scrapers import casa, idealista, immobiliare, subito
+from .scrapers import casa, idealista, immobiliare, pvp, subito
 
 log = logging.getLogger(__name__)
 
 
-def parse_html_file(path: Path) -> list[Listing]:
+def parse_html_file(path: Path, comune: str | None = None) -> list[Listing]:
     html = path.read_text(encoding="utf-8", errors="ignore")
+    if path.suffix.lower() == ".json":      # risposta del servizio di ricerca del PVP salvata dal browser
+        try:
+            res = pvp.lotti_da_json(json.loads(html), comune)
+        except ValueError:
+            res = []
+        log.info("%s: %d lotti PVP", path.name, len(res))
+        return res
     low = html.lower()
+    if "pvp.giustizia" in low or "portale delle vendite pubbliche" in low:
+        res = pvp.parse_search_page(html, comune)
+        log.info("%s: %d lotti PVP", path.name, len(res))
+        return res
     # sito di provenienza: quello citato più volte (le pagine iniziano spesso con centinaia di KB di CSS)
     conteggi = {k: low.count(k) for k in ("immobiliare.it", "subito.it", "idealista", "casa.it")}
     sito = max(conteggi, key=conteggi.get) if max(conteggi.values()) else None
@@ -47,11 +59,11 @@ ESCLUSE = {"importate", "non_riconosciute"}
 
 
 def pagine_da_importare(cartella: str | Path) -> list[Path]:
-    """File .htm/.html nella cartella, escluse le sottocartelle d'archivio e le
+    """File .htm/.html (e .json del PVP) nella cartella, escluse le sottocartelle d'archivio e le
     cartelle '<nome>_files' create da "Salva pagina web completa"."""
     base = Path(cartella)
     out = []
-    for p in sorted(base.glob("**/*.htm*")):
+    for p in sorted([*base.glob("**/*.htm*"), *base.glob("**/*.json")]):
         rel = p.relative_to(base).parts[:-1]
         if any(x in ESCLUSE or x.endswith("_files") for x in rel):
             continue
@@ -59,7 +71,7 @@ def pagine_da_importare(cartella: str | Path) -> list[Path]:
     return out
 
 
-def importa_html(cartella: str | Path, archivia: bool = False) -> list[Listing]:
+def importa_html(cartella: str | Path, archivia: bool = False, comune: str | None = None) -> list[Listing]:
     """Importa le pagine salvate. Con archivia=True sposta i file letti in
     'importate/<data>/' e quelli non riconosciuti in 'non_riconosciute/'."""
     import datetime as dt
@@ -70,7 +82,7 @@ def importa_html(cartella: str | Path, archivia: bool = False) -> list[Listing]:
     oggi = dt.date.today().isoformat()
     for p in pagine_da_importare(base):
         try:
-            res = parse_html_file(p)
+            res = parse_html_file(p, comune)
         except Exception as e:  # noqa: BLE001 - un file rovinato non deve fermare gli altri
             log.warning("%s: errore di lettura (%s)", p.name, e)
             res = []

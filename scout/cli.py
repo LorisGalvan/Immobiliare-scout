@@ -165,7 +165,7 @@ def main(argv=None):
         st = Storage(resolve(cfg, cfg["database"]))
         if not Path(a.cartella).exists():
             Path(a.cartella).mkdir(parents=True)
-        res = importa_html(a.cartella, archivia=a.archivia)
+        res = importa_html(a.cartella, archivia=a.archivia, comune=cfg["territorio"].get("comune"))
         log.info("pagine salvate: %d annunci importati", len(res))
         per_fonte = {}
         for l in res:

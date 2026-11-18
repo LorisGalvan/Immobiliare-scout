@@ -53,10 +53,22 @@ scraping:
     immobiliare: false     # blocca le richieste automatiche (403): usare le pagine salvate in pagine_salvate/
     subito: true
     idealista: false       # attivare in fase 2 (blocchi anti-bot frequenti)
+    pvp: true              # Portale Vendite Pubbliche (aste giudiziarie ufficiali): vedi aste_pvp
   # Dettaglio annuncio (descrizione completa, data, ascensore...) solo per
   # occasioni e candidati frazionamento, per limitare le richieste.
   scarica_dettaglio: true
   max_dettagli_per_run: 40
+
+# Portale delle Vendite Pubbliche (pvp.giustizia.it): elenco ufficiale di tutte le aste.
+# I lotti vanno solo nella sezione Aste, mai nelle mediane del mercato libero.
+aste_pvp:
+  # servizio di ricerca usato dal sito del PVP (non documentato: se cambia, il bot lo dice nel log
+  # e si salvano le pagine di ricerca dal browser in pagine_salvate/)
+  api_url: "https://pvp.giustizia.it/ric-496b258c-986a1b71/ric-ms/ricerca/vendite"
+  raggio_km: 0          # 0 = solo il comune del territorio
+  per_pagina: 50
+  max_pagine: 20
+  categorie: []         # vuoto = tutte le categorie di immobili (le non residenziali le scarta la pulizia)
 
 geocoding:
   attivo: true
@@ -77,6 +89,7 @@ pulizia:
   parole_escludi:          # annunci scartati se il titolo/descrizione contiene...
     - nuda proprietà
     - multiproprietà
+  parole_escludi_titolo:   # scartati solo se nel TITOLO o nella tipologia (es. "con box auto" nella descrizione va bene)
     - posto auto
     - box auto
   parole_dubbie:           # tenuti ma segnalati

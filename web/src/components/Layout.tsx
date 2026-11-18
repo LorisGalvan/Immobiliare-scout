@@ -2,6 +2,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { DEMO } from "../lib/supabase";
 import { useAuth, useData } from "../lib/store";
 import { ICONE, Icona } from "./ui";
+import Chat from "./Chat";
 
 const VOCI = [
   { to: "/", label: "Panoramica", icona: ICONE.home, end: true },
@@ -60,6 +61,7 @@ export default function Layout() {
       <main className="mx-auto max-w-7xl px-4 py-5 sm:py-6">
         <Outlet />
       </main>
+      {territorio && <Chat />}
       <nav className="fixed inset-x-0 bottom-0 z-[1000] grid grid-cols-7 border-t border-slate-200 bg-white md:hidden">
         {VOCI.map((v) => (
           <NavLink key={v.to} to={v.to} end={v.end}

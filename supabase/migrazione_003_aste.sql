@@ -7,4 +7,6 @@ alter table public.annunci add column if not exists offerta_minima numeric;
 alter table public.annunci add column if not exists data_asta date;
 alter table public.annunci add column if not exists scostamento_minima_pct numeric;
 alter table public.annunci add column if not exists valore_mercato numeric;
+alter table public.annunci add column if not exists diritto text;
+alter table public.annunci add column if not exists occupazione text;
 create index if not exists annunci_tipo_idx on public.annunci (territorio, tipo_vendita);

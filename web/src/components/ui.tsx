@@ -80,5 +80,7 @@ export const ICONE = {
   link: "M10 14a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1M14 10a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1",
   scarica: "M12 3v12M7 10l5 5 5-5M5 21h14",
   indietro: "M15 18l-6-6 6-6",
+  chat: "M21 12a8 8 0 01-11.6 7.1L4 20l1-4.2A8 8 0 1121 12z",
+  chiudi: "M6 6l12 12M18 6L6 18",
   martello: "M14 4l6 6M11 7l6 6M12.5 5.5l-6 6 3 3 6-6M8 13l-5 5 2 2 5-5M4 21h9",
 };

@@ -28,7 +28,7 @@ COL_ANNUNCI = ["uid", "source", "url", "titolo", "descrizione", "prezzo", "mq", 
                "flags", "doppioni", "zona_omi", "omi_min", "omi_max"]
 # colonne della migrazione 003 (aste): se il database non le ha ancora, si pubblica senza
 COL_ASTE = ["tipo_vendita", "indizi_vendita", "prezzo_base", "offerta_minima", "data_asta",
-            "scostamento_minima_pct", "valore_mercato"]
+            "scostamento_minima_pct", "valore_mercato", "diritto", "occupazione"]
 COL_MEDIANE = ["microzona", "fascia", "n", "mediana_mq", "media_mq", "mediana_zona", "n_zona"]
 COL_FRAZ = ["uid", "n_unita", "mq_unita", "mediana_piccole_mq", "n_campione_piccole", "valore_post",
             "costo_lavori", "costo_impianti_oneri", "costi_transazione", "costi_totali", "margine",

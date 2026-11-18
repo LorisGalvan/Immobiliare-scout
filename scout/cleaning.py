@@ -24,21 +24,32 @@ def valida(l: Listing, cfg: dict) -> tuple[bool, str | None]:
     testo = f"{l.titolo} {l.descrizione}".lower()
     if not l.prezzo or l.prezzo <= 1000:
         return False, "prezzo mancante"
+    if l.tipologia and any(t in l.tipologia.lower() for t in TIPOLOGIE_NO):
+        return False, f"tipologia {l.tipologia}"
     if not l.mq:
         mq_txt = mq_dal_testo(f"{l.titolo or ''} {l.descrizione or ''}")
         if mq_txt and p.get("mq_dal_testo", True):
             l.mq = mq_txt
             l.flags = sorted(set(l.flags) | {"mq letti dal testo"})
+        elif esito.tipo in ("asta", "possibile_asta"):
+            # un lotto all'asta senza mq resta nella lista Aste (senza confronto €/mq)
+            l.flags = sorted(set(l.flags) | {"mq mancanti"})
+            return False, ("asta: " if esito.tipo == "asta" else "possibile asta (da verificare): ") + \
+                ", ".join(esito.indizi[:3])
         else:
             return False, "mq mancanti"
     if l.mq < p.get("mq_min", 18) or l.mq > p.get("mq_max", 1000):
         return False, f"mq fuori range ({l.mq:g})"
-    if l.tipologia and any(t in l.tipologia.lower() for t in TIPOLOGIE_NO):
-        return False, f"tipologia {l.tipologia}"
     for w in p.get("parole_escludi", []):
         if "asta" in w.lower():   # le aste le riconosce tipo_vendita e finiscono nella lista Aste
             continue
         if w.lower() in testo:
+            return False, f"esclusione: '{w}'"
+    # parole che escludono solo se sono nel titolo o nella tipologia: "box auto" nella descrizione
+    # di un appartamento ("con box auto") non deve farlo scartare
+    titolo_tip = f"{l.titolo} {l.tipologia or ''}".lower()
+    for w in p.get("parole_escludi_titolo", []):
+        if w.lower() in titolo_tip:
             return False, f"esclusione: '{w}'"
     ppm = l.prezzo / l.mq
     flags = set(l.flags)
@@ -121,7 +132,7 @@ def sono_doppioni(a: Listing, b: Listing, cfg: dict) -> bool:
     return False
 
 
-PRIORITA = {"immobiliare": 0, "idealista": 1, "casa": 2, "subito": 3, "facebook": 4, "excel": 9}
+PRIORITA = {"pvp": -1, "immobiliare": 0, "idealista": 1, "casa": 2, "subito": 3, "facebook": 4, "excel": 9}
 
 
 def unisci_doppioni(listings: list[Listing], cfg: dict) -> list[Listing]:

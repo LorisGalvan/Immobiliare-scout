@@ -110,3 +110,44 @@ def classifica(titolo: str | None = None, descrizione: str | None = None, tipolo
 
 def classifica_listing(l) -> Esito:
     return classifica(l.titolo, l.descrizione, l.tipologia, l.agenzia, l.flags)
+
+
+# ---------------------------------------------------------------- diritto e occupazione (per le aste)
+_FRAZ = re.compile(r"(?:propriet[aà]|quota)[^.;\n]{0,30}?\b(\d{1,4})\s*/\s*(\d{1,4})\b", re.I)
+
+
+def diritto(testo: str | None) -> str | None:
+    """Diritto venduto: "piena proprietà", "quota 1/2", "nuda proprietà", "usufrutto"...
+    None se il testo non lo dice (da verificare sulla perizia)."""
+    t = (testo or "").lower()
+    if not t:
+        return None
+    if re.search(r"nuda\s+propriet", t):
+        return "nuda proprietà"
+    if re.search(r"diritto\s+di\s+superficie|propriet[aà]\s+superficiaria", t):
+        return "diritto di superficie"
+    piena = re.search(r"piena\s+(?:ed\s+esclusiva\s+)?propriet|intera\s+propriet|propriet[aà]\s+esclusiva", t)
+    if re.search(r"(?<!libero da )(?<!libera da )(?<!senza )\busufrutto\b", t) and not piena:
+        return "usufrutto"
+    if re.search(r"diritto\s+di\s+abitazione", t) and not piena:
+        return "diritto di abitazione"
+    frazioni = [(int(a), int(b)) for a, b in _FRAZ.findall(t) if int(b) > 0]
+    parziali = [f"{a}/{b}" for a, b in frazioni if a != b]
+    if parziali:
+        return "quota " + parziali[0]
+    if re.search(r"quota\s+(?:indivisa|parte)\b|pro\s?-?quota", t):
+        return "quota"
+    if frazioni or piena:
+        return "piena proprietà"
+    return None
+
+
+def occupazione(testo: str | None) -> str | None:
+    t = (testo or "").lower()
+    if re.search(r"\blibero\b|libero da persone|\bliberat[oa]\b|non occupat", t) and "non libero" not in t:
+        return "libero"
+    if re.search(r"\blocat[oa]\b|contratto di locazione", t):
+        return "locato"
+    if re.search(r"\boccupat[oa]\b", t):
+        return "occupato dal debitore" if re.search(r"debitor|esecutat", t) else "occupato"
+    return None

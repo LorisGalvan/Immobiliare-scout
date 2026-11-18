@@ -253,6 +253,17 @@ Aste e possibili aste **non entrano nelle mediane**: finiscono nel foglio Excel 
 confrontate con il mercato libero della loro microzona e fascia, con prezzo base, offerta minima e data letti dal testo.
 Sul sito serve una volta `supabase/migrazione_003_aste.sql` (SQL Editor di Supabase); senza, il bot pubblica solo le compravendite.
 
+**Portale delle Vendite Pubbliche (PVP).** Per avere l'elenco completo delle aste, il bot legge anche
+[pvp.giustizia.it](https://pvp.giustizia.it), dove per legge va pubblicata ogni vendita giudiziaria
+(`scraping.siti.pvp: true`, impostazioni in `aste_pvp`). I lotti del PVP vanno solo nella sezione Aste.
+Se lo stesso lotto è anche su Immobiliare o altri portali, resta una riga sola, quella del PVP, con gli altri link
+in "Stesso lotto anche su". Per ogni asta il bot legge anche il **diritto** venduto (piena proprietà, quota, nuda
+proprietà, usufrutto) e se l'immobile è **libero o occupato**.
+
+Il servizio di ricerca del PVP non è documentato e il bot non è ancora stato provato sul sito vero:
+se nel log compare "PVP: il servizio di ricerca non risponde come previsto", apri la ricerca sul PVP nel browser
+(Verona, immobili), salvala con Ctrl+S in `pagine_salvate/` e lancia `importa-html` come per Immobiliare.
+
 ---
 
 ## 6. Frazionamento
