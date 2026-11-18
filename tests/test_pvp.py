@@ -204,3 +204,11 @@ def test_tribunale_da_config():
     cfg["territorio"] = {**cfg["territorio"], "comune": "San Giovanni Lupatoto"}
     cfg["aste_pvp"] = {**cfg["aste_pvp"], "tribunale": "Tribunale di Verona"}
     assert pvp.tribunale(cfg) == "Tribunale di VERONA"
+
+
+def test_pvp_continua_se_non_e_l_ultima_pagina():
+    """Un lotto senza prezzo base non fa credere che la pagina sia l'ultima: conta "last" del servizio."""
+    assert not pvp._ultima_pagina({"body": {"content": [{}, {}], "last": False}}, 1, 2)
+    assert pvp._ultima_pagina({"body": {"content": [{}], "last": True}}, 1, 2)
+    assert not pvp._ultima_pagina({"body": {"content": [{}, {}]}}, 1, 2)
+    assert pvp._ultima_pagina({"body": {"content": [{}]}}, 1, 2)

@@ -285,6 +285,18 @@ def _totale(data) -> int | None:
     return None
 
 
+def _ultima_pagina(data, n_lotti: int, per_pagina: int) -> bool:
+    """Il servizio dice se è l'ultima pagina ("last"); i lotti letti possono essere meno di quelli
+    ricevuti (alcuni senza prezzo base), quindi contarli non basta."""
+    corpo = data.get("body") if isinstance(data, dict) else None
+    if isinstance(corpo, dict):
+        if isinstance(corpo.get("last"), bool):
+            return corpo["last"]
+        if isinstance(corpo.get("content"), list):
+            return len(corpo["content"]) < per_pagina
+    return n_lotti < per_pagina
+
+
 def _nel_comune(l: Listing, comune: str | None) -> bool:
     if not comune:
         return True
@@ -334,6 +346,6 @@ def scrape(cfg: dict, client: PoliteClient) -> list[Listing]:
                         "filtro. Risposta salvata in data/log/pvp/ per controllarla.", tribunale(cfg))
         # si continua finché il servizio restituisce pagine piene (contando i lotti ricevuti, non quelli filtrati)
         # e finché nella pagina ci sono aste recenti (sono in ordine dalla più lontana nel futuro)
-        if not grezzi or len(grezzi) < per_pagina or len(vecchi) == len(grezzi):
+        if not grezzi or _ultima_pagina(data, len(grezzi), per_pagina) or len(vecchi) == len(grezzi):
             break
     return list(tutti.values())
