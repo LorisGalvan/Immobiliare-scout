@@ -37,6 +37,25 @@ def input_actor(cfg: dict) -> dict:
             "proxy": {"useApifyProxy": True, "apifyProxyGroups": ["RESIDENTIAL"], "apifyProxyCountry": "IT"}}
 
 
+_PRIVATO_TXT = re.compile(r"\b(da privato|privato vende|vendo privatamente|vende privato|no agenzi\w*|"
+                          r"astenersi agenzi\w*|senza agenzi\w*|no intermediari|niente agenzi\w*)\b", re.I)
+_TIPO_PRIVATO = re.compile(r"privat|private|user|owner", re.I)
+
+
+def privato_wikicasa(r: dict, ag: dict | None, testo: str) -> bool:
+    """Privato se: niente agenzia, oppure l'inserzionista è indicato come privato, oppure lo dice il testo."""
+    if not ag or not ag.get("name"):
+        return True
+    for k in ("advertiser_type", "user_typology", "user_type", "typology_name"):
+        for d in (r, ag):
+            v = d.get(k)
+            if isinstance(v, str) and _TIPO_PRIVATO.search(v):
+                return True
+    if r.get("private") is True or ag.get("private") is True or r.get("is_private") is True:
+        return True
+    return bool(_PRIVATO_TXT.search(testo or ""))
+
+
 def a_listing(r: dict) -> Listing | None:
     url = str(_g(r, "url") or "")
     m = re.search(r"/annuncio/(\d+)", url)
@@ -49,7 +68,10 @@ def a_listing(r: dict) -> Listing | None:
         url = BASE + url
     ag = r.get("agency") if isinstance(r.get("agency"), dict) else None
     nome_ag = (ag or {}).get("name")
-    privato = not nome_ag
+    testo = f"{_g(r, 'title') or ''} {_g(r, 'description') or ''}"
+    privato = privato_wikicasa(r, ag, testo)
+    if privato:
+        nome_ag = None
     return Listing(
         source=SOURCE, source_id=str(rid), url=url or f"{BASE}/annuncio/{rid}",
         titolo=str(_g(r, "title") or " ".join(str(x) for x in (_g(r, "typology_name", "typology"), _g(r, "zone_name")) if x)),
@@ -80,6 +102,11 @@ def scrape(cfg: dict) -> tuple[list[Listing], bool]:
         log.error("Wikicasa: %s", e)
         return [], False
     res = {l.uid: l for l in map(a_listing, righe) if l}
+    # riepilogo dei campi dell'inserzionista: serve a capire come Wikicasa distingue privati e agenzie
+    from collections import Counter
+    tipi = Counter(str((x.get("agency") or {}).get("user_typology_id")) for x in righe if isinstance(x, dict))
+    chiavi = sorted({k for x in righe if isinstance(x, dict) and isinstance(x.get("agency"), dict) for k in x["agency"]})
+    log.info("Wikicasa: user_typology_id %s; campi agency: %s", dict(tipi), ", ".join(chiavi))
     log.info("Wikicasa: %d righe, %d annunci in vendita (privati: %d)",
              len(righe), len(res), sum(l.privato is True for l in res.values()))
     return list(res.values()), False
