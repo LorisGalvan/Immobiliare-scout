@@ -12,9 +12,12 @@ condividono il bordo più lungo. Il risultato è un GeoJSON da rivedere a mano
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import math
 import time
+from pathlib import Path
 
 import requests
 from shapely.geometry import LineString, MultiLineString, Point, Polygon
@@ -40,21 +43,38 @@ ROAD_LEVELS = {
 }
 
 
-def overpass(query: str, user_agent: str | None = None, tentativi: int = 3) -> dict:
+def overpass(query: str, user_agent: str | None = None, tentativi: int = 2) -> dict:
     """Interroga Overpass provando più server. ``user_agent`` è ignorato di proposito: quello da browser
     usato per i portali viene rifiutato da Overpass."""
+    # risposte già scaricate: un nuovo tentativo non richiede di nuovo gli stessi dati
+    cache = Path("data/cache/osm") / (hashlib.sha1(query.encode()).hexdigest()[:16] + ".json")
+    if cache.exists():
+        try:
+            return json.loads(cache.read_text(encoding="utf-8"))
+        except ValueError:
+            pass
     last = None
     headers = {"User-Agent": UA_OVERPASS, "Accept": "application/json,*/*;q=0.8"}
     for i in range(tentativi):
         for url in OVERPASS_URLS:
             try:
-                r = requests.post(url, data={"data": query}, headers=headers, timeout=180)
+                r = requests.post(url, data={"data": query}, headers=headers, timeout=150)
                 if r.status_code == 200:
                     try:
-                        return r.json()
+                        dati = r.json()
                     except ValueError:
                         last = f"{url}: risposta non JSON"
                         continue
+                    if dati.get("remark") and not dati.get("elements"):
+                        last = f"{url}: {dati['remark'][:200]}"      # es. timeout lato server
+                        log.warning("Overpass %s", last)
+                        continue
+                    try:
+                        cache.parent.mkdir(parents=True, exist_ok=True)
+                        cache.write_text(json.dumps(dati), encoding="utf-8")
+                    except OSError:
+                        pass
+                    return dati
                 last = f"{url}: HTTP {r.status_code}"
                 log.warning("Overpass %s", last)
             except requests.RequestException as e:
@@ -91,8 +111,17 @@ def _relation_polygon(el) -> Polygon | None:
     return unary_union(polys)
 
 
-def fetch_comune_boundary(comune: str, user_agent: str) -> Polygon:
-    q = f"""[out:json][timeout:120];
+def fetch_comune_boundary(comune: str, user_agent: str | None = None,
+                          bbox: tuple[float, float, float, float] | None = None) -> Polygon:
+    """Confine comunale. Con ``bbox`` (minx, miny, maxx, maxy) la ricerca è limitata a quel riquadro:
+    molto più leggera che cercare in tutta Italia, che manda in errore 502/504 i server Overpass."""
+    if bbox:
+        minx, miny, maxx, maxy = bbox
+        q = f"""[out:json][timeout:90][bbox:{miny},{minx},{maxy},{maxx}];
+    rel["boundary"="administrative"]["admin_level"="8"]["name"="{comune}"];
+    out geom;"""
+    else:
+        q = f"""[out:json][timeout:120];
     area["ISO3166-1"="IT"]["admin_level"="2"]->.it;
     rel(area.it)["boundary"="administrative"]["admin_level"="8"]["name"="{comune}"];
     out geom;"""
@@ -108,14 +137,14 @@ def fetch_cut_features(poly: Polygon, user_agent: str, livello: str = "medio") -
     minx, miny, maxx, maxy = poly.bounds
     bbox = f"{miny},{minx},{maxy},{maxx}"
     roads = ROAD_LEVELS.get(livello, ROAD_LEVELS["medio"])
-    q = f"""[out:json][timeout:180];
+    # solo "way" (niente relazione intera del fiume: l'Adige completo è enorme) e geometrie tagliate al riquadro
+    q = f"""[out:json][timeout:120];
     (
       way["highway"~"^({roads})$"]({bbox});
       way["railway"="rail"]["service"!~"."]({bbox});
       way["waterway"~"^(river|canal)$"]({bbox});
-      rel["waterway"="river"]({bbox});
     );
-    out geom;
+    out geom({bbox});
     (
       rel["boundary"="administrative"]["admin_level"~"^(9|10)$"]({bbox});
       rel["place"~"^(suburb|quarter)$"]({bbox});
@@ -206,7 +235,12 @@ def build_zones(territorio: Polygon, tagli: list[LineString], quartieri: list[tu
 def proponi_microzone(comune: str, user_agent: str, livello: str = "medio",
                       area_min_m2: float = 150_000, territorio: Polygon | None = None,
                       esistenti: MicrozoneSet | None = None) -> MicrozoneSet:
-    territorio = territorio or fetch_comune_boundary(comune, user_agent)
+    riquadro = None
+    if esistenti and len(esistenti):
+        # cerco il confine solo attorno alle tue zone (allargate di circa 10 km)
+        minx, miny, maxx, maxy = unary_union([z.geom for z in esistenti.zone]).bounds
+        riquadro = (minx - 0.13, miny - 0.09, maxx + 0.13, maxy + 0.09)
+    territorio = territorio or fetch_comune_boundary(comune, user_agent, riquadro)
     if esistenti and len(esistenti):
         # genera solo dove non ci sono già le tue microzone
         territorio = territorio.difference(unary_union([z.geom for z in esistenti.zone])).buffer(0)
