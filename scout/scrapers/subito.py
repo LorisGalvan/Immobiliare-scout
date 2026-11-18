@@ -13,13 +13,13 @@ import re
 from ..geo.geocode import estrai_indirizzo
 from ..models import Listing
 from ..normalize import num, piano, si_no, stato
-from .base import BloccatoError, PoliteClient, next_data, walk
+from .base import BloccatoError, PoliteClient, fasce_prezzo, next_data, walk
 
 log = logging.getLogger(__name__)
 SOURCE = "subito"
 
 
-def search_url(cfg: dict, page: int = 1, categoria: str = "appartamenti") -> str:
+def search_url(cfg: dict, page: int = 1, categoria: str = "appartamenti", fascia: tuple | None = None) -> str:
     t = cfg["territorio"]
     reg, com, prov = t.get("subito_regione", "veneto"), t.get("subito_comune", "verona"), \
         t.get("subito_provincia", t.get("subito_comune", "verona"))
@@ -28,10 +28,11 @@ def search_url(cfg: dict, page: int = 1, categoria: str = "appartamenti") -> str
     q = []
     if page > 1:
         q.append(f"o={page}")
-    if f.get("prezzo_min"):
-        q.append(f"ps={int(f['prezzo_min'])}")
-    if f.get("prezzo_max"):
-        q.append(f"pe={int(f['prezzo_max'])}")
+    pmin, pmax = fascia if fascia else (f.get("prezzo_min"), f.get("prezzo_max"))
+    if pmin:
+        q.append(f"ps={int(pmin)}")
+    if pmax:
+        q.append(f"pe={int(pmax)}")
     return url + ("?" + "&".join(q) if q else "")
 
 
@@ -120,11 +121,11 @@ def scrape(cfg: dict, client: PoliteClient) -> list[Listing]:
     max_pag = int(cfg.get("scraping", {}).get("max_pagine", 40))
     categorie = cfg.get("scraping", {}).get("subito_categorie", ["appartamenti"])
     tutti: dict[str, Listing] = {}
-    for cat in categorie:
+    for cat, fascia in ((c, fz) for c in categorie for fz in fasce_prezzo(cfg)):
         page, tot = 1, None
         while page <= max_pag and (tot is None or page <= tot):
             try:
-                r = client.get(search_url(cfg, page, cat))
+                r = client.get(search_url(cfg, page, cat, fascia))
             except BloccatoError as e:
                 log.error("Subito: %s", e)
                 return list(tutti.values())
@@ -133,7 +134,7 @@ def scrape(cfg: dict, client: PoliteClient) -> list[Listing]:
                 break
             annunci, tot_pag = parse_search_page(r.text)
             tot = tot_pag or tot
-            log.info("Subito %s pag %d/%s: %d annunci", cat, page, tot, len(annunci))
+            log.info("Subito %s %.0f-%.0f€ pag %d/%s: %d annunci", cat, fascia[0] or 0, fascia[1] or 0, page, tot, len(annunci))
             if not annunci:
                 break
             for a in annunci:

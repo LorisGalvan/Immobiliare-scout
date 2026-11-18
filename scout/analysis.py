@@ -4,6 +4,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import logging
+import re
 
 import numpy as np
 import pandas as pd
@@ -50,8 +51,11 @@ def _row_to_listing(r) -> Listing:
     return l
 
 
-def prepara(storage: Storage, cfg: dict) -> pd.DataFrame:
-    """Annunci validi e deduplicati (attivi + rimossi di recente) con metadati storici."""
+def prepara(storage: Storage, cfg: dict, aste: list | None = None) -> pd.DataFrame:
+    """Annunci validi e deduplicati (attivi + rimossi di recente) con metadati storici.
+
+    Se ``aste`` è una lista, ci finiscono gli annunci attivi riconosciuti come aste
+    (esclusi dalla valutazione del territorio)."""
     df = storage.dataframe()
     if df.empty:
         return df
@@ -63,13 +67,17 @@ def prepara(storage: Storage, cfg: dict) -> pd.DataFrame:
     for _, r in df.iterrows():
         l = _row_to_listing(r)
         ok, motivo = valida(l, cfg)
-        storage.aggiorna_campi(l.uid, scartato=int(not ok), motivo_scarto=motivo, flags=l.flags)
+        storage.aggiorna_campi(l.uid, scartato=int(not ok), motivo_scarto=motivo, flags=l.flags,
+                               tipo_vendita=l.tipo_vendita, indizi_vendita=l.indizi_vendita, mq=l.mq)
         if ok:
             tenuti.append(l)
         else:
             scarti[l.uid] = motivo
+            if aste is not None and motivo and motivo.startswith(("asta", "possibile asta")) and r["attivo"] == 1:
+                aste.append((l, r))
     storage.commit()
-    log.info("annunci validi %d, scartati %d", len(tenuti), len(scarti))
+    n_aste = sum(1 for m in scarti.values() if m and m.startswith(("asta", "possibile asta")))
+    log.info("annunci validi %d, scartati %d (di cui aste o possibili aste: %d)", len(tenuti), len(scarti), n_aste)
 
     # i doppioni si uniscono separatamente tra attivi e rimossi
     attivi_uid = set(df.loc[df["attivo"] == 1, "uid"])
@@ -154,6 +162,77 @@ def analizza(df: pd.DataFrame, cfg: dict, omi: "OMI | None" = None) -> tuple[pd.
     df["occasione"] = (df["scostamento_pct"] <= soglia) & (df["attivo"] == 1)
     df = df.drop(columns=[c for c in df.columns if c.endswith("_z")])
     return df, med
+
+
+# ---------------------------------------------------------------------- Aste
+_EURO = r"(?:€|euro|eur)?\s*([\d.]{4,}(?:,\d{1,2})?)\s*(?:€|euro)?"
+_RX_BASE = re.compile(r"prezzo\s+(?:base|d['’]asta)[^\d€]{0,25}" + _EURO, re.I)
+_RX_MIN = re.compile(r"offerta\s+minima[^\d€]{0,25}" + _EURO, re.I)
+_RX_DATA = re.compile(r"(?:data\s+(?:dell['’]\s*)?(?:asta|vendita)|asta\s+(?:il|del)|vendita\s+(?:il|del))[^\d]{0,15}(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})", re.I)
+
+
+def dati_asta(testo: str) -> dict:
+    """Prezzo base, offerta minima e data dell'asta, se scritti nell'annuncio."""
+    from .normalize import num
+    out = {"prezzo_base": None, "offerta_minima": None, "data_asta": None}
+    m = _RX_BASE.search(testo or "")
+    if m:
+        out["prezzo_base"] = num(m.group(1).rstrip("."))
+    m = _RX_MIN.search(testo or "")
+    if m:
+        out["offerta_minima"] = num(m.group(1).rstrip("."))
+    m = _RX_DATA.search(testo or "")
+    if m:
+        g, me, a = (int(x) for x in m.groups())
+        a = a + 2000 if a < 100 else a
+        try:
+            out["data_asta"] = dt.date(a, me, g).isoformat()
+        except ValueError:
+            pass
+    return out
+
+
+def analizza_aste(aste: list, df: pd.DataFrame, med: pd.DataFrame, cfg: dict) -> pd.DataFrame:
+    """Confronta ogni asta con il mercato libero della sua microzona e fascia (le mediane
+    calcolate SENZA le aste). Lo sconto è sul prezzo dell'annuncio e, se c'è, sull'offerta minima."""
+    if not aste:
+        return pd.DataFrame()
+    a = cfg.get("analisi", {})
+    fasce = a.get("fasce_mq", [[30, 50, "30/50"], [50, 70, "50/70"], [70, 100, "70/100"], [100, 10000, "100+"]])
+    corr = a.get("correzioni", {})
+    min_n = int(a.get("min_campione", 3))
+    usa_norm = corr.get("attive", False)
+    righe = []
+    for l, r in aste:
+        d = {**l.to_dict(), "flags": l.flags, "indizi_vendita": l.indizi_vendita,
+             "first_seen": r.get("first_seen"), "last_seen": r.get("last_seen"), "attivo": 1}
+        d["fascia"] = fascia(l.mq, fasce)
+        d["coeff"] = coefficiente(d, corr)
+        d.update(dati_asta(f"{l.titolo or ''} {l.descrizione or ''}"))
+        rif, base = np.nan, "senza zona"
+        if l.microzona and not med.empty:
+            m = med[(med["microzona"] == l.microzona) & (med["fascia"] == d["fascia"])]
+            mz = med[med["microzona"] == l.microzona]
+            if len(m) and m.iloc[0]["n"] >= min_n:
+                rif = m.iloc[0]["mediana_mq_norm" if usa_norm else "mediana_mq"]
+                base = f"fascia (n={int(m.iloc[0]['n'])})"
+            elif len(mz) and (mz.iloc[0]["n_zona"] or 0) >= min_n:
+                rif = mz.iloc[0]["mediana_zona_norm" if usa_norm else "mediana_zona"]
+                base = f"zona intera (n={int(mz.iloc[0]['n_zona'])})"
+            else:
+                base = "campione scarso"
+        d["riferimento_mq"], d["base_confronto"] = rif, base
+        valore = d["prezzo_mq"] / d["coeff"] if usa_norm else d["prezzo_mq"]
+        d["scostamento_pct"] = (valore / rif - 1) * 100 if rif == rif else np.nan
+        if d["offerta_minima"] and l.mq and rif == rif:
+            d["scostamento_minima_pct"] = (d["offerta_minima"] / l.mq / d["coeff"] / rif - 1) * 100 if usa_norm \
+                else (d["offerta_minima"] / l.mq / rif - 1) * 100
+        else:
+            d["scostamento_minima_pct"] = np.nan
+        d["valore_mercato"] = rif * l.mq * d["coeff"] if usa_norm and rif == rif else (rif * l.mq if rif == rif else np.nan)
+        righe.append(d)
+    out = pd.DataFrame(righe)
+    return out.sort_values(["tipo_vendita", "scostamento_pct"], na_position="last").reset_index(drop=True)
 
 
 # ---------------------------------------------------------------------- OMI

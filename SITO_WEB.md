@@ -27,6 +27,8 @@ Costo: piani gratuiti di Supabase e Netlify sono sufficienti.
    Annota la password del database (non serve al bot, ma tienila).
 2. **SQL Editor** → *New query* → incolla tutto il contenuto di [`supabase/schema.sql`](supabase/schema.sql) → **Run**.
    Crea tabelle, permessi (solo utenti autenticati) e lo spazio "report" per gli Excel.
+   Se il database esiste già, esegui invece le migrazioni che mancano, in ordine
+   (`supabase/migrazione_00X_*.sql`): la **003** aggiunge le colonne delle aste giudiziarie.
 3. **Authentication → Sign In / Providers**: lascia attivo *Email*, e **disattiva "Allow new users to sign up"**.
 4. **Project Settings → API**: copia
    - *Project URL* (es. `https://abcd1234.supabase.co`)

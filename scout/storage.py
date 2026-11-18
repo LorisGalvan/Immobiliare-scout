@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS esecuzioni (id INTEGER PRIMARY KEY AUTOINCREMENT, ts 
   annunci INTEGER, nuovi INTEGER, ribassi INTEGER, rimossi INTEGER, completa INTEGER, note TEXT);
 CREATE INDEX IF NOT EXISTS ix_annunci_zona ON annunci(microzona);
 """
+# colonne aggiunte dopo la prima versione: create al volo nei database esistenti
+COLONNE_NUOVE = {"tipo_vendita": "TEXT", "indizi_vendita": "TEXT"}
 
 CAMPI = ["source", "source_id", "url", "titolo", "descrizione", "prezzo", "mq", "piano", "ascensore",
          "bagni", "locali", "stato", "stato_raw", "agenzia", "privato", "data_pubblicazione",
@@ -40,6 +42,11 @@ class Storage:
         self.conn = sqlite3.connect(str(path))
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
+        esistenti = {r[1] for r in self.conn.execute("PRAGMA table_info(annunci)")}
+        for col, tipo in COLONNE_NUOVE.items():
+            if col not in esistenti:
+                self.conn.execute(f"ALTER TABLE annunci ADD COLUMN {col} {tipo}")
+        self.conn.commit()
         self.path = str(path)
 
     # ------------------------------------------------------------------ scrittura
@@ -88,7 +95,7 @@ class Storage:
     def aggiorna_campi(self, uid: str, **campi):
         if not campi:
             return
-        for k in ("flags", "doppioni"):
+        for k in ("flags", "doppioni", "indizi_vendita"):
             if k in campi and not isinstance(campi[k], str):
                 campi[k] = json.dumps(campi[k])
         sets = ",".join(f"{k}=?" for k in campi)

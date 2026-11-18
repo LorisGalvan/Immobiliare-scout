@@ -31,6 +31,8 @@ class Listing:
     prezzo_ribassato_da: Optional[float] = None
     # campi calcolati
     microzona: Optional[str] = None
+    tipo_vendita: Optional[str] = None   # compravendita | asta | possibile_asta (da tipo_vendita.py)
+    indizi_vendita: list = field(default_factory=list)
     flags: list = field(default_factory=list)
     doppioni: list = field(default_factory=list)   # altri link dello stesso immobile
 

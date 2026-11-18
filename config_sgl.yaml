@@ -41,6 +41,10 @@ scraping:
   # "microzone": una ricerca per ogni poligono (più precisa, più richieste)
   modalita: comune
   max_pagine: 40
+  # I portali mostrano solo un certo numero di pagine per ricerca: spezzando la ricerca del comune
+  # in fasce di prezzo si arriva a TUTTI gli annunci invece dei primi ~1.000-2.000.
+  # Lista vuota [] = una ricerca unica come prima.
+  fasce_prezzo: [100000, 150000, 200000, 250000, 320000, 420000, 600000]
   filtri:
     prezzo_min: 30000
     prezzo_max: 1500000
@@ -67,15 +71,15 @@ pulizia:
   mq_max: 1000
   prezzo_mq_min: 300       # sotto: dato dubbio (asta, nuda proprietà, errore)
   prezzo_mq_max: 15000
+  # Le aste NON vanno messe qui: le riconosce il bot leggendo il testo (scout/tipo_vendita.py),
+  # le toglie dalla valutazione e le elenca a parte (foglio e pagina "Aste").
+  mq_dal_testo: true       # se manca il campo mq, li cerca nel testo dell'annuncio
   parole_escludi:          # annunci scartati se il titolo/descrizione contiene...
     - nuda proprietà
-    - asta giudiziaria
-    - all'asta
     - multiproprietà
     - posto auto
     - box auto
   parole_dubbie:           # tenuti ma segnalati
-    - asta
     - affittato
     - a reddito
     - usufrutto

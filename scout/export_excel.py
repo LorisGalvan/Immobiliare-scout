@@ -233,19 +233,32 @@ COL_FRAZ = [
 ]
 
 
-def esporta(path, df: pd.DataFrame, med: pd.DataFrame, fraz: pd.DataFrame, zone_set, cfg: dict) -> str:
+COL_ASTE = [
+    ("Tipo", "tipo_vendita", None), ("Microzona", "microzona", None), ("Fascia", "fascia", None),
+    ("Via", "indirizzo", None), ("Titolo", "titolo", None), ("MQ", "mq", None), ("Prezzo annuncio", "prezzo", "eur"),
+    ("€/mq", "prezzo_mq", "eur"), ("Mediana mercato €/mq", "riferimento_mq", "eur"), ("Base confronto", "base_confronto", None),
+    ("% vs mercato", "scostamento_pct", "pct"), ("Valore di mercato", "valore_mercato", "eur"),
+    ("Prezzo base", "prezzo_base", "eur"), ("Offerta minima", "offerta_minima", "eur"),
+    ("% offerta minima vs mercato", "scostamento_minima_pct", "pct"), ("Data asta", "data_asta", None),
+    ("Indizi nel testo", "indizi_vendita", None), ("Agenzia", "agenzia", None), ("Fonte", "source", None), ("Link", "url", None),
+]
+
+
+def esporta(path, df: pd.DataFrame, med: pd.DataFrame, fraz: pd.DataFrame, zone_set, cfg: dict,
+            aste: pd.DataFrame | None = None) -> str:
     fasce = cfg.get("analisi", {}).get("fasce_mq")
     slug = cfg["territorio"].get("slug_immobiliare", "verona")
     wb = Workbook()
     ws = wb.active
     ws.title = "Riepilogo"
-    usati = {"riepilogo", "occasioni", "frazionabili", "ribassi", "fuori zona"}
+    usati = {"riepilogo", "occasioni", "aste", "frazionabili", "ribassi", "fuori zona"}
 
     # ---- Riepilogo
     ws.cell(1, 1, f"Scout immobili - {cfg['territorio']['nome']} - {dt.date.today():%d/%m/%Y}").font = Font(bold=True, size=14)
     attivi = df[df["attivo"] == 1] if not df.empty else df
+    n_aste = 0 if aste is None or aste.empty else len(aste)
     ws.cell(2, 1, f"Annunci attivi analizzati: {len(attivi)} | occasioni: {int(df['occasione'].sum()) if not df.empty else 0}"
-                  f" | soglia {cfg['analisi'].get('soglia_occasione_pct')}%")
+                  f" | soglia {cfg['analisi'].get('soglia_occasione_pct')}% | aste escluse dalla valutazione: {n_aste}")
     hdr = ["Microzona", "Annunci"] + [f"{f[2]} mediana €/mq" for f in fasce] + [f"{f[2]} n" for f in fasce] + ["Mediana zona €/mq"]
     for c, h in enumerate(hdr, 1):
         cell = ws.cell(4, c, h)
@@ -274,6 +287,18 @@ def esporta(path, df: pd.DataFrame, med: pd.DataFrame, fraz: pd.DataFrame, zone_
     _tabella(wo, occ, COL_OCCASIONI)
     for i, w in enumerate([22, 8, 26, 40, 6, 11, 9, 11, 10, 18, 6, 8, 6, 14, 20, 7, 8, 8, 11, 6, 40, 40], 1):
         wo.column_dimensions[get_column_letter(i)].width = w
+
+    # ---- Aste (fuori dalla valutazione, confrontate con il mercato libero della zona)
+    wa = wb.create_sheet("Aste")
+    if aste is not None and not aste.empty:
+        wa.cell(1, 1, "Aste e possibili aste riconosciute dal testo degli annunci: NON entrano nelle mediane. "
+                      "'possibile_asta' = un solo indizio, controlla l'annuncio.").font = Font(italic=True)
+        _tabella(wa, aste.assign(indizi_vendita=aste["indizi_vendita"].apply(
+            lambda v: ", ".join(v) if isinstance(v, list) else v)), COL_ASTE, start_row=3)
+        for i, w in enumerate([14, 22, 8, 26, 34, 6, 12, 9, 11, 16, 9, 12, 12, 12, 11, 11, 40, 20, 11, 8], 1):
+            wa.column_dimensions[get_column_letter(i)].width = w
+    else:
+        wa.cell(1, 1, "Nessuna asta riconosciuta tra gli annunci attivi.")
 
     # ---- Frazionabili
     wf = wb.create_sheet("Frazionabili")

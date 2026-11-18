@@ -115,6 +115,21 @@ class PoliteClient:
 
 
 # ---------------------------------------------------------------------- helpers HTML
+def fasce_prezzo(cfg: dict) -> list[tuple[float | None, float | None]]:
+    """Fasce di prezzo in cui spezzare una ricerca: i portali mostrano solo un numero massimo
+    di pagine, quindi su un comune grande una ricerca unica perde gli annunci oltre il limite.
+    Con ``scraping.fasce_prezzo`` (lista di soglie) ogni fascia è una ricerca a sé."""
+    s = cfg.get("scraping", {}) or {}
+    soglie = s.get("fasce_prezzo") or []
+    f = s.get("filtri", {}) or {}
+    if not soglie:
+        return [(f.get("prezzo_min"), f.get("prezzo_max"))]
+    soglie = sorted(float(x) for x in soglie)
+    lo, hi = f.get("prezzo_min"), f.get("prezzo_max")
+    punti = [lo] + [x for x in soglie if (lo is None or x > lo) and (hi is None or x < hi)] + [hi]
+    return [(punti[i], punti[i + 1]) for i in range(len(punti) - 1)]
+
+
 def next_data(html: str) -> dict | None:
     """Estrae il JSON __NEXT_DATA__ delle pagine Next.js (Immobiliare, Subito)."""
     m = re.search(r'<script[^>]+id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.S)

@@ -47,6 +47,14 @@ export interface Annuncio {
   zona_omi: string | null;
   omi_min: number | null;
   omi_max: number | null;
+  // aste (migrazione 003): assenti nei dati vecchi
+  tipo_vendita?: "compravendita" | "asta" | "possibile_asta" | null;
+  indizi_vendita?: string[] | null;
+  prezzo_base?: number | null;
+  offerta_minima?: number | null;
+  data_asta?: string | null;
+  scostamento_minima_pct?: number | null;
+  valore_mercato?: number | null;
 }
 
 export interface Mediana {
@@ -106,7 +114,10 @@ export interface Esecuzione {
 export interface Dataset {
   territorio: string;
   zone: Zona[];
+  /** solo compravendite: entrano nella valutazione del territorio */
   annunci: Annuncio[];
+  /** aste e possibili aste lette dal testo: tenute a parte */
+  aste: Annuncio[];
   mediane: Mediana[];
   frazionabili: Frazionabile[];
   ultimaEsecuzione: Esecuzione | null;

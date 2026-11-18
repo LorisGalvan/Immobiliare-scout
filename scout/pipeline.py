@@ -103,7 +103,8 @@ def _dettagli_immobiliare(cfg, storage, client, res: list[Listing]):
 
 def analizza_e_esporta(cfg, storage: Storage, zone: MicrozoneSet, alert: bool = True,
                        dry_run_alert: bool = False) -> dict:
-    df = prepara(storage, cfg)
+    aste_grezze: list = []
+    df = prepara(storage, cfg, aste_grezze)
     omi = None
     if get(cfg, "analisi.omi.attivo", False):
         try:
@@ -111,16 +112,18 @@ def analizza_e_esporta(cfg, storage: Storage, zone: MicrozoneSet, alert: bool = 
         except (OSError, KeyError, ValueError) as e:
             log.warning("OMI non disponibile: %s", e)
     df, med = analizza(df, cfg, omi)
+    from .analysis import analizza_aste
+    aste = analizza_aste(aste_grezze, df, med, cfg)
     fraz = analizza_frazionamento(df, med, cfg)
     out = resolve(cfg, cfg.get("cartella_output", "output"))
     out.mkdir(parents=True, exist_ok=True)
     stamp = dt.date.today().isoformat()
     nome = cfg["territorio"]["nome"].replace(" ", "_")
-    xlsx = esporta(out / f"scouting_{nome}_{stamp}.xlsx", df, med, fraz, zone, cfg)
+    xlsx = esporta(out / f"scouting_{nome}_{stamp}.xlsx", df, med, fraz, zone, cfg, aste=aste)
     html = mappa_analisi(out / f"mappa_{nome}_{stamp}.html", zone, df, med, fraz,
                          f"Scout immobili {cfg['territorio']['nome']} - {stamp}")
     testi = notifica(cfg, storage, df, fraz, dry_run=dry_run_alert) if alert else []
-    risultato = {"excel": xlsx, "df": df, "med": med, "fraz": fraz}
+    risultato = {"excel": xlsx, "df": df, "med": med, "fraz": fraz, "aste": aste}
     pubblicato = False
     if get(cfg, "supabase.attivo", False):
         from .supabase_sync import pubblica
@@ -129,10 +132,10 @@ def analizza_e_esporta(cfg, storage: Storage, zone: MicrozoneSet, alert: bool = 
         except Exception as e:  # noqa: BLE001 - il report locale resta valido
             log.error("pubblicazione su Supabase fallita: %s", e)
     n_occ = int(df["occasione"].sum()) if not df.empty else 0
-    log.info("Excel: %s | Mappa: %s | occasioni: %d | frazionabili: %d | segnalazioni: %d",
-             xlsx, html, n_occ, len(fraz), len(testi))
+    log.info("Excel: %s | Mappa: %s | occasioni: %d | frazionabili: %d | aste: %d | segnalazioni: %d",
+             xlsx, html, n_occ, len(fraz), len(aste), len(testi))
     return {"excel": xlsx, "mappa": html, "occasioni": n_occ, "frazionabili": len(fraz),
-            "segnalazioni": testi, "df": df, "med": med, "fraz": fraz, "pubblicato": pubblicato}
+            "segnalazioni": testi, "df": df, "med": med, "fraz": fraz, "aste": aste, "pubblicato": pubblicato}
 
 
 __all__ = ["Path", "carica_zone", "ingest", "scrape_tutto", "analizza_e_esporta"]

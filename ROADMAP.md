@@ -3,6 +3,8 @@
 ## Fatto
 - Bot: microzone dai tuoi Excel, Subito automatico, Immobiliare/Idealista/Casa.it da pagine salvate,
   analisi per microzona e fascia, storico, Excel, mappa, frazionamento, sito web con login (Supabase + GitHub Pages).
+- Aste lette dal testo degli annunci e tenute fuori dalla valutazione (foglio e pagina "Aste");
+  ricerca spezzata in fasce di prezzo per superare il limite di pagine dei portali; mq letti dal testo.
 
 ## In corso
 - **Editor microzone sul sito** (ramo `editor-zone`): modifica dei confini sulla mappa, nuove zone,
