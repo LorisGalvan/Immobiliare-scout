@@ -82,3 +82,28 @@ def test_scrape_parziale_se_raggiunge_il_limite(monkeypatch):
     cfg["apify"]["token"] = ""
     monkeypatch.delenv("SCOUT_APIFY_TOKEN", raising=False)
     assert ap.scrape(cfg) == ([], False)
+
+
+class _Sess:
+    """Finta sessione: la seconda lettura dello stato fallisce (rete assente), poi va."""
+    def __init__(self):
+        self.headers, self.n, self.post_fatti = {}, 0, 0
+
+    def post(self, *a, **k):
+        self.post_fatti += 1
+
+    def get(self, url, **k):
+        import requests
+        self.n += 1
+        if "actor-runs" in url:
+            if self.n == 2:
+                raise requests.ConnectionError("getaddrinfo failed")
+            return _R({"data": {"id": "R1", "status": "RUNNING" if self.n == 1 else "SUCCEEDED",
+                                "defaultDatasetId": "D1"}})
+        return _R([{"id": "1"}])
+
+
+def test_recupero_run_e_rete_che_cade():
+    s = _Sess()
+    righe = ap.esegui_actor("tok", "x/y", {}, sessione=s, pausa_s=0, run_id="R1")
+    assert righe == [{"id": "1"}] and s.post_fatti == 0       # niente nuovo avvio (non si paga di nuovo)

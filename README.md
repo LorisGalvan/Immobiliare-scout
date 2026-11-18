@@ -183,7 +183,9 @@ sui server di Apify (circa 1 $ ogni 1.000 annunci) e importa i risultati come an
 Su Marketplace vendono soprattutto privati. Nessun accesso con il tuo account Facebook: l'actor
 `vivid-softwares/facebook-property-scraper` legge solo le inserzioni pubbliche (circa 15 $ ogni 1.000 annunci).
 Usa lo stesso token Apify. Doppio clic su `PROVA_FACEBOOK.bat`: giro di prova da 100 annunci (`facebook.max_annunci`).
-Se va bene, `scraping.siti.facebook_apify: true`. Gli annunci di privati di tutte le fonti sono nella pagina **Privati** del sito.
+Se va bene, `scraping.siti.facebook_apify: true`.
+Se la connessione cade mentre il bot aspetta Apify, il giro su Apify continua: `RECUPERA_APIFY.bat` ne scarica
+i risultati (chiede il codice "run") senza rifarlo e senza pagare di nuovo. Gli annunci di privati di tutte le fonti sono nella pagina **Privati** del sito.
 
 ### 4.2 Semi-manuale (se un sito blocca, e per Idealista)
 

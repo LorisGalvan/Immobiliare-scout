@@ -11,6 +11,7 @@ il token è lo stesso di Apify (``apify.token`` in config.local.yaml).
 from __future__ import annotations
 
 import logging
+import os
 import re
 
 import requests
@@ -92,7 +93,8 @@ def scrape(cfg: dict) -> tuple[list[Listing], bool]:
         return [], False
     f = cfg.get("facebook") or {}
     try:
-        righe = esegui_actor(tok, f.get("attore", ATTORE), input_actor(cfg), int(f.get("attesa_max_min", 30)) * 60)
+        righe = esegui_actor(tok, f.get("attore", ATTORE), input_actor(cfg), int(f.get("attesa_max_min", 30)) * 60,
+                             run_id=os.environ.get("SCOUT_APIFY_RUN"))
     except (ApifyErrore, requests.RequestException) as e:
         log.error("Facebook: %s", e)
         return [], False
