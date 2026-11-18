@@ -39,33 +39,60 @@ def token(cfg: dict) -> str | None:
 
 
 # ---------------------------------------------------------------- chiamate Apify
-def esegui_actor(tok: str, attore: str, input_: dict, attesa_max_s: int = 3600,
-                 sessione: requests.Session | None = None, pausa_s: float = 15) -> list[dict]:
-    """Avvia l'actor, aspetta la fine e restituisce tutte le righe del dataset."""
+def esegui_actor(tok: str, attore: str, input_, attesa_max_s: int = 3600,
+                 sessione: requests.Session | None = None, pausa_s: float = 15,
+                 run_id: str | None = None) -> list[dict]:
+    """Avvia l'actor, aspetta la fine e restituisce tutte le righe del dataset.
+    Con ``run_id`` non avvia nulla: recupera i risultati di un'esecuzione già fatta (già pagata)."""
     s = sessione or requests.Session()
     s.headers["Authorization"] = f"Bearer {tok}"
-    r = s.post(f"{API}/acts/{attore.replace('/', '~')}/runs", json=input_, timeout=60)
-    if r.status_code == 401:
-        raise ApifyErrore("token Apify non valido")
-    if r.status_code == 402:
-        raise ApifyErrore("credito Apify esaurito")
-    if r.status_code >= 400:
-        raise ApifyErrore(f"avvio non riuscito (HTTP {r.status_code}): {r.text[:300]}")
-    run = r.json()["data"]
-    log.info("Apify: avviato %s (run %s)", attore, run["id"])
-    inizio = time.time()
+    if run_id:
+        r = s.get(f"{API}/actor-runs/{run_id}", timeout=60)
+        if r.status_code == 404:
+            raise ApifyErrore(f"esecuzione {run_id} non trovata")
+        r.raise_for_status()
+        run = r.json()["data"]
+        log.info("Apify: recupero l'esecuzione %s (stato %s)", run_id, run["status"])
+    else:
+        r = s.post(f"{API}/acts/{attore.replace('/', '~')}/runs", json=input_, timeout=60)
+        if r.status_code == 401:
+            raise ApifyErrore("token Apify non valido")
+        if r.status_code == 402:
+            raise ApifyErrore("credito Apify esaurito")
+        if r.status_code >= 400:
+            raise ApifyErrore(f"avvio non riuscito (HTTP {r.status_code}): {r.text[:300]}")
+        run = r.json()["data"]
+        log.info("Apify: avviato %s (run %s)", attore, run["id"])
+    inizio, errori = time.time(), 0
     while run["status"] not in FINITI:
         if time.time() - inizio > attesa_max_s:
-            raise ApifyErrore(f"l'esecuzione supera {attesa_max_s // 60} minuti: controlla su console.apify.com")
+            raise ApifyErrore(f"l'esecuzione supera {attesa_max_s // 60} minuti: controlla su console.apify.com "
+                              f"(per recuperarla: run {run['id']})")
         time.sleep(pausa_s)
-        run = s.get(f"{API}/actor-runs/{run['id']}", timeout=60).json()["data"]
+        try:
+            run = s.get(f"{API}/actor-runs/{run['id']}", timeout=60).json()["data"]
+            errori = 0
+        except (requests.RequestException, ValueError, KeyError) as e:
+            # la rete di casa può sparire per qualche secondo: l'esecuzione su Apify continua, riprovo
+            errori += 1
+            if errori >= 20:
+                raise ApifyErrore(f"rete assente da troppo tempo ({e}). L'esecuzione su Apify è salva: "
+                                  f"recuperala con RECUPERA_APIFY.bat, run {run['id']}") from e
+            log.warning("Apify: rete non raggiungibile, riprovo (%d/20)", errori)
     if run["status"] != "SUCCEEDED":
         raise ApifyErrore(f"esecuzione terminata con stato {run['status']}")
     righe, offset = [], 0
     while True:
-        r = s.get(f"{API}/datasets/{run['defaultDatasetId']}/items",
-                  params={"clean": "true", "format": "json", "offset": offset, "limit": 1000}, timeout=120)
-        r.raise_for_status()
+        for n in range(5):
+            try:
+                r = s.get(f"{API}/datasets/{run['defaultDatasetId']}/items",
+                          params={"clean": "true", "format": "json", "offset": offset, "limit": 1000}, timeout=120)
+                r.raise_for_status()
+                break
+            except requests.RequestException:
+                if n == 4:
+                    raise
+                time.sleep(pausa_s)
         blocco = r.json()
         righe += blocco
         if len(blocco) < 1000:
@@ -164,9 +191,10 @@ def scrape(cfg: dict) -> tuple[list[Listing], bool]:
     max_ = int(a.get("max_annunci", 200))
     tutti: dict[str, Listing] = {}
     completa = True
-    for inp in input_actor(cfg, attore):
+    run_id = os.environ.get("SCOUT_APIFY_RUN")          # recupero di un'esecuzione già fatta
+    for inp in input_actor(cfg, attore)[:1 if run_id else None]:
         try:
-            righe = esegui_actor(tok, attore, inp, int(a.get("attesa_max_min", 60)) * 60)
+            righe = esegui_actor(tok, attore, inp, int(a.get("attesa_max_min", 60)) * 60, run_id=run_id)
         except (ApifyErrore, requests.RequestException) as e:
             log.error("Apify: %s", e)
             completa = False
