@@ -78,7 +78,7 @@ export default function Privati() {
           <input type="checkbox" checked={soloSotto} onChange={(e) => setSoloSotto(e.target.checked)} />Solo sotto mercato
         </label>
       </div>
-      <ListaAnnunci annunci={lista} vuoto="Nessun annuncio di privati con questi filtri." />
+      <ListaAnnunci annunci={lista} filtroInserzionista={false} vuoto="Nessun annuncio di privati con questi filtri." />
     </>
   );
 }

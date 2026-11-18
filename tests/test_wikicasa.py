@@ -24,7 +24,7 @@ def test_privato_e_affitti():
 def test_input():
     i = wk.input_actor(load_config())
     assert i["urls"][0] == "https://www.wikicasa.it/vendita-case/verona/" and i["urls"][1].endswith("?p=2")
-    assert len(i["urls"]) == 8
+    assert len(i["urls"]) == 30
 
 
 def test_privato_dal_testo():

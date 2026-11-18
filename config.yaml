@@ -76,7 +76,7 @@ apify:
 wikicasa:
   attore: stealth_mode/wikicasa-property-search-scraper
   slug: verona            # https://www.wikicasa.it/vendita-case/verona/
-  pagine: 8                 # pagine di elenco lette (circa 25 annunci l'una): 8 = giro di prova
+  pagine: 30                # pagine di elenco lette (circa 30 annunci l'una): 30 = tutta Verona (836 case, circa 4 $)
   annunci_per_pagina: 30
   attesa_max_min: 30
 

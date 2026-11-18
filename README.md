@@ -190,8 +190,9 @@ i risultati (chiede il codice "run") senza rifarlo e senza pagare di nuovo. Gli 
 ### 4.1d Wikicasa tramite Apify (privati)
 
 Wikicasa ha molti annunci di privati (pubblicare è gratis). L'actor `stealth_mode/wikicasa-property-search-scraper`
-costa circa 3 $ ogni 1.000 annunci. Doppio clic su `PROVA_WIKICASA.bat`: legge le prime 8 pagine di
-`https://www.wikicasa.it/vendita-case/verona/` (`wikicasa.pagine`). Gli annunci senza agenzia finiscono nella pagina **Privati**.
+costa circa 3 $ ogni 1.000 annunci. Doppio clic su `PROVA_WIKICASA.bat`: legge 30 pagine di
+`https://www.wikicasa.it/vendita-case/verona/` (`wikicasa.pagine`), cioè tutta Verona.
+Wikicasa non ha un filtro privati: si leggono tutti gli annunci e sul sito si filtrano con Tutti / Privati / Agenzie. Gli annunci senza agenzia finiscono nella pagina **Privati**.
 Se va bene, `scraping.siti.wikicasa_apify: true` e alza `wikicasa.pagine`.
 
 ### 4.2 Semi-manuale (se un sito blocca, e per Idealista)
