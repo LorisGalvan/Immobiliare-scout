@@ -56,7 +56,10 @@ def esegui_actor(tok: str, attore: str, input_, attesa_max_s: int = 3600,
         run = r.json()["data"]
         log.info("Apify: recupero l'esecuzione %s (stato %s)", run_id, run["status"])
     else:
-        r = s.post(f"{API}/acts/{attore.replace('/', '~')}/runs", json=input_, timeout=60)
+        # timeout dell'esecuzione su Apify: senza, vale quello predefinito dell'actor (spesso 5 minuti),
+        # troppo poco per un giro completo
+        r = s.post(f"{API}/acts/{attore.replace('/', '~')}/runs", json=input_, timeout=60,
+                   params={"timeout": int(attesa_max_s)})
         if r.status_code == 401:
             raise ApifyErrore("token Apify non valido")
         if r.status_code == 402:
@@ -81,9 +84,13 @@ def esegui_actor(tok: str, attore: str, input_, attesa_max_s: int = 3600,
                 raise ApifyErrore(f"rete assente da troppo tempo ({e}). L'esecuzione su Apify è salva: "
                                   f"recuperala con RECUPERA_APIFY.bat, run {run['id']}") from e
             log.warning("Apify: rete non raggiungibile, riprovo (%d/20)", errori)
-    if run["status"] != "SUCCEEDED":
+    parziale = run["status"] != "SUCCEEDED"
+    if run["status"] == "FAILED" or (parziale and not run.get("defaultDatasetId")):
         raise ApifyErrore(f"esecuzione terminata con stato {run['status']}")
-    righe, offset = [], 0
+    if parziale:
+        # TIMED-OUT / ABORTED: gli annunci raccolti fino a quel momento sono già pagati, li tengo
+        log.warning("Apify: esecuzione terminata con stato %s: tengo gli annunci raccolti fin lì", run["status"])
+    righe, offset = Righe(), 0
     while True:
         for n in range(5):
             try:
@@ -100,10 +107,16 @@ def esegui_actor(tok: str, attore: str, input_, attesa_max_s: int = 3600,
         if len(blocco) < 1000:
             break
         offset += 1000
+    righe.parziale = parziale
     _salva_grezzi(run.get("id", "run"), righe)
     costo = run.get("usageTotalUsd")
     log.info("Apify: %d risultati%s", len(righe), f", costo {costo:.2f} $" if isinstance(costo, (int, float)) else "")
     return righe
+
+
+class Righe(list):
+    """Righe del dataset; ``parziale`` è True se l'esecuzione non è arrivata in fondo (timeout, interrotta)."""
+    parziale = False
 
 
 def _salva_grezzi(run_id: str, righe: list[dict]) -> None:
@@ -213,6 +226,8 @@ def scrape(cfg: dict) -> tuple[list[Listing], bool]:
             log.error("Apify: %s", e)
             completa = False
             continue
+        if getattr(righe, "parziale", False):
+            completa = False
         if len(righe) >= inp.get("maxItems", max_):
             completa = False
             log.info("Apify: raggiunto il limite di %d annunci (apify.max_annunci / max_aste): elenco parziale",
