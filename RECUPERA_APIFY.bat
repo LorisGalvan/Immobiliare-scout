@@ -13,11 +13,13 @@ echo Il codice "run" e' nel messaggio "Apify: avviato ... (run XXXX)" oppure su 
 echo.
 set /p SCOUT_APIFY_RUN=Codice run: 
 echo.
-echo Fonte: 1 = Facebook   2 = Immobiliare   3 = Wikicasa
-set /p SCELTA=Scelta (1, 2 o 3): 
+echo Fonte: 1 = Facebook   2 = Immobiliare   3 = Wikicasa   4 = Idealista   5 = Casa.it
+set /p SCELTA=Scelta (da 1 a 5): 
 set SITO=facebook_apify
 if "%SCELTA%"=="2" set SITO=immobiliare_apify
 if "%SCELTA%"=="3" set SITO=wikicasa_apify
+if "%SCELTA%"=="4" set SITO=idealista_apify
+if "%SCELTA%"=="5" set SITO=casa_apify
 ".venv\Scripts\python.exe" -m scout scrape --siti %SITO% || goto errore
 set SCOUT_APIFY_RUN=
 echo.
