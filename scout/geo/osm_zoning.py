@@ -85,26 +85,36 @@ def overpass(query: str, user_agent: str | None = None, tentativi: int = 2) -> d
     raise RuntimeError(f"Overpass non raggiungibile (ultimo errore {last})")
 
 
+def _tratti(geometria) -> list[LineString]:
+    """Con ``out geom(bbox)`` Overpass mette null al posto dei punti fuori dal riquadro:
+    la linea si spezza lì invece di unire punti lontani (o andare in errore)."""
+    out, tratto = [], []
+    for p in (geometria or []) + [None]:
+        if p and p.get("lon") is not None and p.get("lat") is not None:
+            tratto.append((p["lon"], p["lat"]))
+            continue
+        if len(tratto) >= 2:
+            out.append(LineString(tratto))
+        tratto = []
+    return out
+
+
 def _ways_to_lines(elements) -> list[LineString]:
     lines = []
     for el in elements:
         if el.get("type") == "way" and "geometry" in el:
-            coords = [(p["lon"], p["lat"]) for p in el["geometry"]]
-            if len(coords) >= 2:
-                lines.append(LineString(coords))
+            lines.extend(_tratti(el["geometry"]))
         elif el.get("type") == "relation":
             for m in el.get("members", []):
                 if m.get("type") == "way" and "geometry" in m:
-                    coords = [(p["lon"], p["lat"]) for p in m["geometry"] if p]
-                    if len(coords) >= 2:
-                        lines.append(LineString(coords))
+                    lines.extend(_tratti(m["geometry"]))
     return lines
 
 
 def _relation_polygon(el) -> Polygon | None:
-    lines = [LineString([(p["lon"], p["lat"]) for p in m["geometry"]])
-             for m in el.get("members", [])
-             if m.get("type") == "way" and m.get("role") in ("outer", "") and "geometry" in m]
+    lines = [t for m in el.get("members", [])
+             if m.get("type") == "way" and m.get("role") in ("outer", "") and "geometry" in m
+             for t in _tratti(m["geometry"])]
     polys = list(polygonize(unary_union(lines)))
     if not polys:
         return None
@@ -159,8 +169,10 @@ def fetch_cut_features(poly: Polygon, user_agent: str, livello: str = "medio") -
             if el["type"] == "relation":
                 p = _relation_polygon(el)
             else:
-                coords = [(g["lon"], g["lat"]) for g in el.get("geometry", [])]
-                p = Polygon(coords) if len(coords) >= 4 else None
+                geom = el.get("geometry") or []
+                coords = [(g["lon"], g["lat"]) for g in geom if g]
+                # un quartiere tagliato dal riquadro (punti null) non è un poligono affidabile
+                p = Polygon(coords) if len(coords) >= 4 and len(coords) == len(geom) else None
             if p is not None and p.is_valid:
                 quartieri.append((tags.get("name", ""), p))
         else:

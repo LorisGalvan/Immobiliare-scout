@@ -45,3 +45,12 @@ def test_overpass_prova_altri_server(monkeypatch, tmp_path):
     assert len(chiamate) == 2 and chiamate[1][0] != chiamate[0][0]
     assert all("ScoutImmobili" in ua for _, ua in chiamate)      # mai lo User-Agent da browser
     assert oz.overpass("[out:json];", None) == {"elements": []} and len(chiamate) == 2   # seconda volta: dalla cache
+
+
+def test_punti_null_fuori_dal_riquadro():
+    """Overpass con out geom(bbox) restituisce null per i punti fuori dal riquadro: la linea si spezza."""
+    from scout.geo.osm_zoning import _ways_to_lines
+    el = {"type": "way", "geometry": [{"lon": 10.9, "lat": 45.4}, {"lon": 10.91, "lat": 45.41}, None,
+                                      {"lon": 11.0, "lat": 45.5}, {"lon": 11.01, "lat": 45.51}, None]}
+    linee = _ways_to_lines([el, {"type": "way", "geometry": None}])
+    assert len(linee) == 2 and all(len(l.coords) == 2 for l in linee)
