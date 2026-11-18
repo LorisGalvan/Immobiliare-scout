@@ -163,6 +163,14 @@ def build_zones(territorio: Polygon, tagli: list[LineString], quartieri: list[tu
             changed = True
             break
 
+    # scarti: strisce sottili e ritagli rimasti tra le zone esistenti (non sono zone vere:
+    # gli annunci lì vengono comunque presi dalla tolleranza di confine)
+    spessore = 30 / kx                                   # 30 m in gradi
+    prima = len(facce)
+    facce = [f for f in facce if f.area * deg2_to_m2 >= area_min_m2 * 0.2 and not f.buffer(-spessore).is_empty]
+    if len(facce) < prima:
+        log.info("scartati %d ritagli troppo piccoli o sottili", prima - len(facce))
+
     # nomi: quartiere OSM che contiene il centroide + progressivo
     contatori: dict[str, int] = {}
     zone = []

@@ -115,7 +115,7 @@ def main(argv=None):
         zs = proponi_microzone(cfg["territorio"]["comune"], get(cfg, "scraping.user_agent"),
                                a.livello, a.area_min, esistenti=esistenti)
         out = Path(a.output) if a.output else zone_path
-        if out.exists() and not a.output and not a.solo_scoperto:
+        if out.exists() and not a.output:
             backup = out.with_suffix(".backup.geojson")
             out.replace(backup)
             log.info("zone precedenti salvate in %s", backup)

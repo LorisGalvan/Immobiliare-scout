@@ -124,6 +124,8 @@ python -m scout zone-auto --solo-scoperto
 - `--livello base|medio|fine`: quali strade fanno da confine (`fine` include le terziarie → zone più piccole).
 - `--area-min`: le zone più piccole di questa area (m²) vengono fuse con la vicina con cui condividono il bordo più lungo.
 - I nomi vengono dal quartiere OSM che contiene la zona (`Borgo Venezia m1`, `m2`...).
+- Per coprire solo le parti di Verona dove le tue zone non arrivano: doppio clic su `MICROZONE_MANCANTI.bat`
+  (`zone-auto --solo-scoperto`). Le tue zone restano intatte. `ANNULLA_MICROZONE.bat` rimette la versione precedente.
 
 ### 3.3 Modificare le microzone
 

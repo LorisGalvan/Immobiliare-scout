@@ -12,3 +12,11 @@ def test_taglio_e_fusione():
     assert 2 <= len(zone) <= 4
     tot = sum(z.geom.area for z in zone)
     assert abs(tot - terr.area) / terr.area < 0.01
+
+
+def test_ritagli_sottili_scartati():
+    # territorio scoperto = grande area libera + striscia larga ~10 m tra due zone esistenti
+    libero = box(10.95, 45.42, 10.99, 45.45)
+    striscia = box(11.00, 45.42, 11.00013, 45.45)
+    zone = build_zones(libero.union(striscia), [LineString([(10.97, 45.40), (10.97, 45.50)])], [], area_min_m2=150_000)
+    assert len(zone) == 2 and all(z.geom.bounds[2] < 10.995 for z in zone)
