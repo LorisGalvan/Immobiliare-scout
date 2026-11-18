@@ -82,5 +82,6 @@ export const ICONE = {
   indietro: "M15 18l-6-6 6-6",
   chat: "M21 12a8 8 0 01-11.6 7.1L4 20l1-4.2A8 8 0 1121 12z",
   chiudi: "M6 6l12 12M18 6L6 18",
+  persona: "M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0",
   martello: "M14 4l6 6M11 7l6 6M12.5 5.5l-6 6 3 3 6-6M8 13l-5 5 2 2 5-5M4 21h9",
 };

@@ -11,6 +11,7 @@ import Zona from "./pages/Zona";
 import Frazionabili from "./pages/Frazionabili";
 import Ribassi from "./pages/Ribassi";
 import Aste from "./pages/Aste";
+import Privati from "./pages/Privati";
 import Annuncio from "./pages/Annuncio";
 import ImpostaPassword from "./pages/ImpostaPassword";
 import { Vuoto } from "./components/ui";
@@ -35,6 +36,7 @@ function Contenuto() {
       <Route path="/microzone/:nome" element={<Zona />} />
       <Route path="/frazionabili" element={<Frazionabili />} />
       <Route path="/ribassi" element={<Ribassi />} />
+      <Route path="/privati" element={<Privati />} />
       <Route path="/aste" element={<Aste />} />
       <Route path="/annuncio/:uid" element={<Annuncio />} />
       <Route path="/password" element={<ImpostaPassword />} />

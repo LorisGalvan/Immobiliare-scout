@@ -178,6 +178,13 @@ sui server di Apify (circa 1 $ ogni 1.000 annunci) e importa i risultati come an
 5. Se la pubblicazione sul sito non va a buon fine (rete lenta), doppio clic su `PUBBLICA.bat`:
    ripubblica i dati già raccolti senza rifare le ricerche e senza mandare alert.
 
+### 4.1c Facebook Marketplace tramite Apify (privati)
+
+Su Marketplace vendono soprattutto privati. Nessun accesso con il tuo account Facebook: l'actor
+`vivid-softwares/facebook-property-scraper` legge solo le inserzioni pubbliche (circa 15 $ ogni 1.000 annunci).
+Usa lo stesso token Apify. Doppio clic su `PROVA_FACEBOOK.bat`: giro di prova da 100 annunci (`facebook.max_annunci`).
+Se va bene, `scraping.siti.facebook_apify: true`. Gli annunci di privati di tutte le fonti sono nella pagina **Privati** del sito.
+
 ### 4.2 Semi-manuale (se un sito blocca, e per Idealista)
 
 1. Apri nel browser la ricerca (puoi usare i link in riga 1-3 dei fogli microzona dell'Excel generato).

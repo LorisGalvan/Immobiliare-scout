@@ -11,6 +11,7 @@ const VOCI = [
   { to: "/microzone", label: "Microzone", icona: ICONE.zone },
   { to: "/frazionabili", label: "Frazionabili", icona: ICONE.forbici },
   { to: "/ribassi", label: "Ribassi", icona: ICONE.freccia },
+  { to: "/privati", label: "Privati", icona: ICONE.persona },
   { to: "/aste", label: "Aste", icona: ICONE.martello },
 ];
 
@@ -62,10 +63,10 @@ export default function Layout() {
         <Outlet />
       </main>
       {territorio && <Chat />}
-      <nav className="fixed inset-x-0 bottom-0 z-[1000] grid grid-cols-7 border-t border-slate-200 bg-white md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-[1000] grid grid-cols-8 border-t border-slate-200 bg-white md:hidden">
         {VOCI.map((v) => (
           <NavLink key={v.to} to={v.to} end={v.end}
-            className={({ isActive }) => `flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium ${isActive ? "text-brand-700" : "text-slate-500"}`}>
+            className={({ isActive }) => `flex flex-col items-center gap-0.5 py-2 text-[9px] font-medium ${isActive ? "text-brand-700" : "text-slate-500"}`}>
             <Icona d={v.icona} className="h-5 w-5" />
             {v.label}
           </NavLink>
