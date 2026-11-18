@@ -42,3 +42,22 @@ def test_casa_pagine_max_80():
 def test_casa_tutte_le_tipologie():
     c = ap.input_actor(load_config(), "casa")
     assert c["propertyType"] == "all" and c["maxRetries"] == 10
+
+
+def test_casa_una_run_per_fascia_di_prezzo(monkeypatch):
+    """Casa.it si ferma a ~380 annunci per ricerca: una run per fascia; una fascia al limite = elenco parziale."""
+    cfg = load_config()
+    cfg["scraping"] = {**cfg["scraping"], "fasce_prezzo": [200000], "filtri": {"prezzo_min": 30000, "prezzo_max": 900000}}
+    monkeypatch.setattr(ap, "token", lambda cfg: "x")
+    monkeypatch.delenv("SCOUT_APIFY_RUN", raising=False)
+    input_ricevuti = []
+
+    def finto(tok, attore, inp, attesa, run_id=None):
+        input_ricevuti.append((inp["priceMin"], inp["priceMax"]))
+        n = 3 if inp["priceMin"] == 30000 else ap.TETTO_CASA
+        return [{**CASA, "adId": f"{inp['priceMin']}-{i}"} for i in range(n)]
+
+    monkeypatch.setattr(ap, "esegui_actor", finto)
+    annunci, completa = ap.scrape(cfg, "casa")
+    assert input_ricevuti == [(30000, 200000), (200000, 900000)]
+    assert len(annunci) == 3 + ap.TETTO_CASA and completa is False     # la seconda fascia è al limite
