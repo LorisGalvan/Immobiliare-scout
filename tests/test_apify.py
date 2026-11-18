@@ -55,7 +55,8 @@ class _Sessione:
     def __init__(self, righe, stati=("RUNNING", "SUCCEEDED")):
         self.headers, self.righe, self.stati = {}, righe, list(stati)
 
-    def post(self, url, json, timeout):
+    def post(self, url, json, timeout, params=None):
+        assert params and params["timeout"] > 300          # timeout della run passato ad Apify
         assert "/acts/crawloop~immobiliare-it-scraper/runs" in url
         return _R({"data": {"id": "r1", "status": "READY", "defaultDatasetId": "d1"}})
 
@@ -107,3 +108,9 @@ def test_recupero_run_e_rete_che_cade():
     s = _Sess()
     righe = ap.esegui_actor("tok", "x/y", {}, sessione=s, pausa_s=0, run_id="R1")
     assert righe == [{"id": "1"}] and s.post_fatti == 0       # niente nuovo avvio (non si paga di nuovo)
+
+
+def test_run_in_timeout_tiene_gli_annunci():
+    s = _Sessione([{"id": "1"}, {"id": "2"}], stati=("RUNNING", "TIMED-OUT"))
+    righe = ap.esegui_actor("tok", "crawloop/immobiliare-it-scraper", {}, sessione=s, pausa_s=0)
+    assert len(righe) == 2 and righe.parziale is True
