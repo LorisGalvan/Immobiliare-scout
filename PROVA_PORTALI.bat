@@ -8,8 +8,17 @@ if not exist ".venv\Scripts\python.exe" (
   pause
   exit /b 1
 )
-echo  ===== Idealista e Casa.it tramite Apify (fino a 3.000 annunci ciascuno, circa 5 $ in tutto) =====
-".venv\Scripts\python.exe" -m scout scrape --siti idealista_apify,casa_apify || goto errore
+echo Quale portale leggere?
+echo   1 = Idealista e Casa.it
+echo   2 = solo Idealista
+echo   3 = solo Casa.it
+set "SCELTA=1"
+set /p "SCELTA=Numero (invio = 1): "
+set "SITI=idealista_apify,casa_apify"
+if "%SCELTA%"=="2" set "SITI=idealista_apify"
+if "%SCELTA%"=="3" set "SITI=casa_apify"
+echo  ===== %SITI% tramite Apify (fino a 3.000 annunci ciascuno, pochi dollari) =====
+".venv\Scripts\python.exe" -m scout scrape --siti %SITI% || goto errore
 echo.
 echo  ===== Analisi, Excel, mappa e pubblicazione sul sito =====
 ".venv\Scripts\python.exe" -m scout analizza --no-alert || goto errore

@@ -41,7 +41,7 @@ def input_actor(cfg: dict, portale: str) -> dict:
                 "fetchDetails": bool(p.get("descrizione", True)), "proxyConfiguration": proxy}
     out = {"locationSlugs": [p.get("slug") or t.get("slug_immobiliare") or t["comune"].lower()],
            "transaction": "sale", "propertyType": "apartment",
-           "maxListings": max_, "maxPagesPerTask": int(p.get("max_pagine", 200)), "proxyConfiguration": proxy}
+           "maxListings": max_, "maxPagesPerTask": min(int(p.get("max_pagine", 80)), 80), "proxyConfiguration": proxy}
     if f.get("prezzo_min"):
         out["priceMin"] = int(f["prezzo_min"])
     if f.get("prezzo_max"):
