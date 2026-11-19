@@ -159,3 +159,21 @@ def test_mq_letti_dal_testo(tmp_path):
                 titolo="Bilocale 58 mq zona stadio")
     ok, _ = valida(l, load_config())
     assert ok and l.mq == 58 and "mq letti dal testo" in l.flags
+
+
+def test_zone_nuove_valgono_per_gli_annunci_in_archivio(tmp_path):
+    """Dopo MICROZONE_MANCANTI gli annunci già salvati senza zona ricevono la zona nuova."""
+    from scout.geo.microzones import Microzona
+    from scout.pipeline import riassegna_zone
+    cfg = _cfg(tmp_path)
+    tutte = MicrozoneSet.load(cfg["microzone"]["file"])
+    rnd = random.Random(3)
+    z0 = tutte.zone[0]
+    lat, lon = _punto_in(z0, rnd)
+    st = Storage(cfg["database"])
+    vuote = MicrozoneSet([z for z in tutte.zone if z.nome != z0.nome])      # prima: la zona non c'era
+    ingest(cfg, st, [Listing(source="immobiliare", source_id="1", url="u", prezzo=200000, mq=80, lat=lat, lon=lon)],
+           vuote, "immobiliare", completa=False)
+    assert st.conn.execute("SELECT microzona FROM annunci").fetchone()[0] in (None, z0.nome)
+    assert riassegna_zone(st, tutte, cfg) == 0
+    assert st.conn.execute("SELECT microzona FROM annunci").fetchone()[0] == z0.nome
