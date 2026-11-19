@@ -121,8 +121,29 @@ def _dettagli_immobiliare(cfg, storage, client, res: list[Listing]):
         storage.upsert(cand[:maxn])
 
 
+def riassegna_zone(storage: Storage, zone: MicrozoneSet, cfg: dict) -> int:
+    """Ricalcola la microzona di tutti gli annunci con coordinate in base alle zone attuali,
+    così le zone nuove (o annullate) valgono subito anche per gli annunci già in archivio.
+    Restituisce quanti annunci attivi restano senza zona."""
+    tol = float(get(cfg, "microzone.tolleranza_confine_m", 0))
+    righe = storage.conn.execute("SELECT uid, lat, lon, microzona, attivo FROM annunci").fetchall()
+    cambiati = senza = 0
+    for uid, lat, lon, vecchia, attivo in righe:
+        nuova = zone.assign(lat, lon, tol) if lat is not None and lon is not None else vecchia
+        if nuova != vecchia:
+            storage.aggiorna_campi(uid, microzona=nuova)
+            cambiati += 1
+        if attivo == 1 and nuova is None:
+            senza += 1
+    storage.commit()
+    attivi = sum(1 for r in righe if r[4] == 1)
+    log.info("microzone ricalcolate: %d annunci cambiati di zona; attivi senza zona %d/%d", cambiati, senza, attivi)
+    return senza
+
+
 def analizza_e_esporta(cfg, storage: Storage, zone: MicrozoneSet, alert: bool = True,
                        dry_run_alert: bool = False) -> dict:
+    riassegna_zone(storage, zone, cfg)
     aste_grezze: list = []
     df = prepara(storage, cfg, aste_grezze)
     omi = None
