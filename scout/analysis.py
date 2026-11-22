@@ -84,6 +84,8 @@ def prepara(storage: Storage, cfg: dict, aste: list | None = None) -> pd.DataFra
     attivi_uid = set(df.loc[df["attivo"] == 1, "uid"])
     reps = unisci_doppioni([l for l in tenuti if l.uid in attivi_uid], cfg) + \
         unisci_doppioni([l for l in tenuti if l.uid not in attivi_uid], cfg)
+    if not reps:      # es. tutti gli annunci sono aste
+        return pd.DataFrame()
     rep_df = pd.DataFrame([{**l.to_dict(), "flags": l.flags, "doppioni": l.doppioni} for l in reps])
     meta = df.set_index("uid")[["first_seen", "last_seen", "attivo", "removed_at", "prezzo_iniziale",
                                 "n_prezzi", "pmin", "pmax"]]
