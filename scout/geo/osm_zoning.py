@@ -272,7 +272,11 @@ def disegna_hinterland(cfg: dict, livello: str = "medio", area_min_m2: float = 1
     from ..territori import RIQUADRO_VR, comuni_hinterland, file_zone, nome_breve
     ua = get(cfg, "scraping.user_agent")
     righe = []
+    fine = time.time() + float(get(cfg, "hinterland.minuti_microzone", 20)) * 60
     for c in comuni_hinterland(cfg):
+        if time.time() > fine:
+            righe.append("tempo per le microzone finito: i comuni rimasti si fanno al prossimo giro")
+            break
         path = resolve(cfg, file_zone(c))
         zs = MicrozoneSet.load(path)
         auto = [z for z in zs.zone if z.props.get("fonte") == "osm_auto"]
@@ -280,12 +284,16 @@ def disegna_hinterland(cfg: dict, livello: str = "medio", area_min_m2: float = 1
             righe.append(f"{c['nome']}: {len(zs)} microzone già presenti")
             continue
         mie = MicrozoneSet([z for z in zs.zone if z.props.get("fonte") != "osm_auto"])
+        log.info("microzone di %s: chiedo a OpenStreetMap confine, strade, ferrovie e fiumi...", c["nome"])
         try:
             confine = fetch_comune_boundary(c.get("nome_osm", c["nome"]), ua, RIQUADRO_VR)
             tutte = proponi_microzone(c["nome"], ua, livello, area_min_m2, territorio=confine,
                                       esistenti=mie if len(mie) else None)
         except Exception as e:  # noqa: BLE001 - un comune che non riesce non ferma gli altri
             righe.append(f"{c['nome']}: microzone non disegnate ({e}); si riprova al prossimo giro")
+            if "non raggiungibile" in str(e):
+                righe.append("OpenStreetMap non risponde: gli altri comuni si fanno al prossimo giro")
+                break                    # inutile aspettare i timeout per ogni comune
             continue
         breve, nomi = nome_breve(c), set(mie.names())
         for z in tutte.zone[len(mie):]:
@@ -296,6 +304,7 @@ def disegna_hinterland(cfg: dict, livello: str = "medio", area_min_m2: float = 1
             nomi.add(z.nome)
             z.props["comune"] = c["nome"]
         tutte.save(path)
+        log.info("%s: %d microzone salvate", c["nome"], len(tutte))
         righe.append(f"{c['nome']}: {len(tutte) - len(mie)} microzone nuove"
                      + (f" (più le tue {len(mie)})" if len(mie) else "") + f" -> {path.name}")
         time.sleep(5)                    # gentilezza verso i server Overpass tra un comune e l'altro
