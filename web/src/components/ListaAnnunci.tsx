@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { eur, FONTE, num, piano } from "../lib/format";
+import { nInserzionisti } from "../lib/doppioni";
 import { useData } from "../lib/store";
 import type { Annuncio } from "../lib/types";
 import { nomeUtente, NESSUNA, perAnnuncio } from "../lib/valutazioni";
@@ -73,7 +74,8 @@ function Elenco({ annunci, vuoto, mostraZona }: { annunci: Annuncio[]; vuoto: st
                 <td className="td text-right tabular-nums">{num(a.prezzo_mq)}</td>
                 <td className="td text-right tabular-nums text-slate-500">{num(a.riferimento_mq)}</td>
                 <td className="td">{piano(a.piano)}</td>
-                <td className="td max-w-[10rem] truncate text-slate-600">
+                <td className="td max-w-[13rem] truncate text-slate-600">
+                  <Copie a={a} />
                   {a.privato ? <span className="chip bg-violet-100 text-violet-800">Privato</span> : a.agenzia ?? "–"}
                   <span className="ml-1 text-xs text-slate-400">{FONTE[a.source]?.split(".")[0]}</span>
                 </td>
@@ -105,6 +107,7 @@ function Elenco({ annunci, vuoto, mostraZona }: { annunci: Annuncio[]; vuoto: st
               <span className="text-slate-500">{num(a.prezzo_mq)} €/mq</span>
               {(a.ribasso_pct ?? 0) < 0 && <span className="text-xs text-rose-600">↓{Math.abs(a.ribasso_pct!).toFixed(0)}%</span>}
               {a.privato && <span className="chip bg-violet-100 text-violet-800">Privato</span>}
+              <Copie a={a} />
               <BadgeStato stato={statoDi(a.uid)} />
               {teamDi(a.uid).autore && <span className="text-xs text-slate-400">{teamDi(a.uid).autore}</span>}
             </div>
@@ -113,4 +116,12 @@ function Elenco({ annunci, vuoto, mostraZona }: { annunci: Annuncio[]; vuoto: st
       </div>
     </>
   );
+}
+
+/** "3 agenzie": lo stesso immobile è pubblicato più volte ed è raccolto in questa scheda. */
+function Copie({ a }: { a: Annuncio }) {
+  if (!a.doppioni?.length) return null;
+  const n = Math.max(nInserzionisti(a), 1);
+  const testo = n > 1 ? `${n} inserzionisti` : `${a.doppioni.length + 1} annunci`;
+  return <span className="chip mr-1 bg-sky-100 text-sky-800" title={`Stesso immobile pubblicato ${a.doppioni.length + 1} volte`}>{testo}</span>;
 }

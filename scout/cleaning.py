@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 import re
 
+from . import doppioni
 from .models import Listing
 from .tipo_vendita import classifica_listing
 
@@ -113,23 +114,14 @@ def _stessa_via(a: Listing, b: Listing) -> bool:
     return norm(a.indirizzo) == norm(b.indirizzo)
 
 
-def sono_doppioni(a: Listing, b: Listing, cfg: dict) -> bool:
-    d = cfg.get("pulizia", {}).get("doppioni", {})
-    if a.uid == b.uid or not (a.mq and b.mq and a.prezzo and b.prezzo):
-        return False
-    if abs(a.mq - b.mq) > d.get("tolleranza_mq", 3):
-        return False
-    if abs(a.prezzo - b.prezzo) / max(a.prezzo, b.prezzo) * 100 > d.get("tolleranza_prezzo_pct", 3):
-        return False
-    if a.microzona and b.microzona and a.microzona != b.microzona:
-        return False
-    vicini = _dist_m(a, b) <= d.get("distanza_max_m", 150)
-    if vicini or _stessa_via(a, b):
-        # stesso piano (se noto) come conferma
-        if a.piano and b.piano and a.piano != b.piano:
-            return False
-        return True
-    return False
+def soglia_doppioni(cfg: dict) -> int:
+    return int(cfg.get("pulizia", {}).get("doppioni", {}).get("soglia_punti", doppioni.SOGLIA))
+
+
+def sono_doppioni(a: Listing, b: Listing, cfg: dict, asta: bool = False) -> bool:
+    """Stesso immobile? Decide il punteggio di ``doppioni.confronta`` (mq, prezzo, indirizzo,
+    piano, testo, numero di procedura)."""
+    return doppioni.stesso_immobile(a, b, asta, soglia_doppioni(cfg))
 
 
 PRIORITA = {"pvp": -1, "immobiliare": 0, "idealista": 1, "casa": 2, "wikicasa": 2, "subito": 3, "facebook": 4, "excel": 9}
@@ -142,37 +134,13 @@ def unisci_doppioni(listings: list[Listing], cfg: dict) -> list[Listing]:
     con dati più ricchi) e gli altri link finiscono in ``doppioni``.
     Restituisce la lista dei rappresentanti.
     """
-    n = len(listings)
-    parent = list(range(n))
-
-    def find(i):
-        while parent[i] != i:
-            parent[i] = parent[parent[i]]
-            i = parent[i]
-        return i
-
-    # indicizzazione grossolana per mq per evitare O(n^2) completo
-    ordinati = sorted(range(n), key=lambda i: listings[i].mq or 0)
-    tol = cfg.get("pulizia", {}).get("doppioni", {}).get("tolleranza_mq", 3)
-    for pos, i in enumerate(ordinati):
-        for j in ordinati[pos + 1:]:
-            if (listings[j].mq or 0) - (listings[i].mq or 0) > tol:
-                break
-            if sono_doppioni(listings[i], listings[j], cfg):
-                parent[find(i)] = find(j)
-
-    gruppi: dict[int, list[Listing]] = {}
-    for i in range(n):
-        gruppi.setdefault(find(i), []).append(listings[i])
+    gruppi = doppioni.raggruppa(listings, soglia=soglia_doppioni(cfg))
     out = []
-    for g in gruppi.values():
+    for g in gruppi:
         g.sort(key=lambda l: (l.prezzo or 1e12, PRIORITA.get(l.source, 5)))
         rep = g[0]
-        altri = [f"{x.source}: {x.url} ({x.agenzia or 'privato' if x.privato else x.agenzia or '?'}, {x.prezzo:,.0f}€)"
-                 for x in g[1:]]
-        rep.doppioni = altri
-        if len({x.agenzia for x in g if x.agenzia}) > 1:
-            rep.flags = sorted(set(rep.flags) | {f"pubblicato da {len(g)} inserzionisti"})
+        rep.doppioni = [doppioni.descrivi(x) for x in g[1:]]
+        doppioni.segnala_gruppo(rep, g)
         # completa campi mancanti dal gruppo
         for x in g[1:]:
             for k in ("piano", "ascensore", "bagni", "stato", "lat", "lon", "indirizzo", "data_pubblicazione"):

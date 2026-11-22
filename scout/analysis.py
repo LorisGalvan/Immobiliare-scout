@@ -9,7 +9,8 @@ import re
 import numpy as np
 import pandas as pd
 
-from .cleaning import PRIORITA, _dist_m, _stessa_via, sono_doppioni, unisci_doppioni, valida
+from . import doppioni
+from .cleaning import PRIORITA, _dist_m, _stessa_via, soglia_doppioni, unisci_doppioni, valida
 from .models import Listing
 from .normalize import piano_num
 from .storage import CAMPI, Storage
@@ -248,47 +249,51 @@ def _unisci_aste(aste: list, cfg: dict) -> list:
     La tolleranza sul prezzo è larga perché un portale mostra il prezzo base e un altro l'offerta minima."""
     if len(aste) < 2:
         return [(l, r) for l, r in aste]
-    c = {**cfg, "pulizia": {**cfg.get("pulizia", {}),
-                            "doppioni": {**cfg.get("pulizia", {}).get("doppioni", {}), "tolleranza_prezzo_pct": 30}}}
-    n = len(aste)
-    parent = list(range(n))
+    riga = {id(l): r for l, r in aste}
+    basi = {id(l): dati_asta(f"{l.titolo or ''} {l.descrizione or ''}")["prezzo_base"] for l, _ in aste}
 
-    def find(i):
-        while parent[i] != i:
-            parent[i] = parent[parent[i]]
-            i = parent[i]
-        return i
+    def puo_unire(a, b):
+        return not (a.source == b.source == "pvp")      # sul PVP ogni lotto è già unico
 
-    basi = [dati_asta(f"{l.titolo or ''} {l.descrizione or ''}")["prezzo_base"] for l, _ in aste]
-
-    def stesso_lotto(i, j):
-        a, b = aste[i][0], aste[j][0]
-        if a.source == b.source and a.source == "pvp":
-            return False                     # sul PVP ogni lotto è già unico
-        if sono_doppioni(a, b, c):
-            return True
-        # stesso prezzo base e stesso posto (i lotti del PVP spesso non hanno i mq)
-        return bool(basi[i]) and basi[i] == basi[j] and (_stessa_via(a, b) or _dist_m(a, b) <= 150 or
-                                                       (a.microzona is not None and a.microzona == b.microzona))
-
-    for i in range(n):
-        for j in range(i + 1, n):
-            if stesso_lotto(i, j):
-                parent[find(i)] = find(j)
-    gruppi: dict[int, list] = {}
-    for i in range(n):
-        gruppi.setdefault(find(i), []).append(aste[i])
+    gruppi_l = doppioni.raggruppa([l for l, _ in aste], asta=True, puo_unire=puo_unire,
+                                  soglia=soglia_doppioni(cfg))
+    # stesso prezzo base e stesso posto (i lotti del PVP spesso non hanno né mq né procedura)
+    gruppi_l = _unisci_per_prezzo_base(gruppi_l, basi)
+    gruppi = [[(l, riga[id(l)]) for l in g] for g in gruppi_l]
     out = []
-    for g in gruppi.values():
+    for g in gruppi:
         g.sort(key=lambda x: (PRIORITA.get(x[0].source, 5), -len(x[0].descrizione or "")))
         rep, rr = g[0]
-        rep.doppioni = [f"{x.source}: {x.url} ({x.agenzia or '?'}, {x.prezzo:,.0f}€)" for x, _ in g[1:]]
+        rep.doppioni = [doppioni.descrivi(x) for x, _ in g[1:]]
+        doppioni.segnala_gruppo(rep, [x for x, _ in g])
         for x, _ in g[1:]:
             for k in ("mq", "piano", "ascensore", "bagni", "stato", "lat", "lon", "indirizzo", "microzona"):
                 if getattr(rep, k) in (None, "") and getattr(x, k) not in (None, ""):
                     setattr(rep, k, getattr(x, k))
             rep.descrizione = f"{rep.descrizione or ''} {x.descrizione or ''}".strip()
         out.append((rep, rr))
+    return out
+
+
+def _unisci_per_prezzo_base(gruppi: list[list[Listing]], basi: dict) -> list[list[Listing]]:
+    """Unisce due gruppi di aste con lo stesso prezzo base scritto nel testo e nello stesso posto,
+    se non si contraddicono (procedure, lotti, piani o mq diversi)."""
+    out: list[list[Listing]] = []
+    for g in gruppi:
+        for h in out:
+            if any(a.source == b.source == "pvp" for a in g for b in h):
+                continue
+            stessa_base = any(basi.get(id(a)) and basi.get(id(a)) == basi.get(id(b)) for a in g for b in h)
+            vicini = any(_stessa_via(a, b) or _dist_m(a, b) <= 150 or
+                         (a.microzona is not None and a.microzona == b.microzona) for a in g for b in h)
+            schede_g = [doppioni.Scheda.da(a) for a in g]
+            schede_h = [doppioni.Scheda.da(b) for b in h]
+            ok = all(doppioni.confronta(x, y, asta=True)[0] > -100 for x in schede_g for y in schede_h)
+            if stessa_base and vicini and ok:
+                h.extend(g)
+                break
+        else:
+            out.append(list(g))
     return out
 
 
