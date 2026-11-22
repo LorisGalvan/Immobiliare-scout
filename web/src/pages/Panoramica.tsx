@@ -3,11 +3,12 @@ import { Link } from "react-router-dom";
 import { urlReport } from "../lib/data";
 import { dataOra, eur, num, pct } from "../lib/format";
 import { useData } from "../lib/store";
+import { NESSUNA, perAnnuncio } from "../lib/valutazioni";
 import ListaAnnunci from "../components/ListaAnnunci";
-import { ICONE, Icona, Kpi, Titolo } from "../components/ui";
+import { BadgeStato, bordoStato, ICONE, Icona, Kpi, Titolo } from "../components/ui";
 
 export default function Panoramica() {
-  const { dataset, soglia } = useData();
+  const { dataset, soglia, valutazioni } = useData();
   const [report, setReport] = useState<string | null>(null);
   useEffect(() => {
     if (dataset?.ultimaEsecuzione?.report_xlsx) urlReport(dataset.ultimaEsecuzione.report_xlsx).then(setReport);
@@ -20,9 +21,12 @@ export default function Panoramica() {
     const nuoviSett = attivi.filter((a) => a.first_seen && Date.now() - new Date(a.first_seen).getTime() < 7 * 864e5);
     const ribassi = attivi.filter((a) => (a.ribasso_pct ?? 0) < 0);
     const ppm = attivi.map((a) => a.prezzo_mq).sort((a, b) => a - b);
+    // i più promettenti tra quelli non ancora scartati dal team
+    const scartati = new Set([...perAnnuncio(valutazioni)].filter(([, t]) => t.gruppo === "scartati").map(([uid]) => uid));
     const fraz = [...dataset.frazionabili].sort((a, b) => b.margine_pct - a.margine_pct);
-    return { attivi, occ, nuoviSett, ribassi, med: ppm[Math.floor(ppm.length / 2)], fraz };
-  }, [dataset, soglia]);
+    const frazAperti = fraz.filter((f) => !scartati.has(f.uid));
+    return { attivi, occ, nuoviSett, ribassi, med: ppm[Math.floor(ppm.length / 2)], fraz, frazAperti, team: perAnnuncio(valutazioni) };
+  }, [dataset, soglia, valutazioni]);
 
   if (!dataset || !s) return null;
   const perUid = new Map(dataset.annunci.map((a) => [a.uid, a]));
@@ -51,19 +55,23 @@ export default function Panoramica() {
         <ListaAnnunci annunci={s.occ.slice(0, 8)} vuoto="Nessuna occasione sotto la soglia." />
       </section>
 
-      {s.fraz.length > 0 && (
+      {s.frazAperti.length > 0 && (
         <section className="mt-6">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="font-semibold">Frazionamenti più promettenti</h2>
             <Link to="/frazionabili" className="text-sm text-brand-600 hover:underline">Vedi tutti →</Link>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {s.fraz.slice(0, 3).map((f) => {
+            {s.frazAperti.slice(0, 3).map((f) => {
               const a = perUid.get(f.uid);
               if (!a) return null;
+              const t = s.team.get(f.uid) ?? NESSUNA;
               return (
-                <Link key={f.uid} to={`/annuncio/${encodeURIComponent(f.uid)}`} className="card block p-4 hover:border-brand-300">
-                  <div className="truncate font-medium">{a.indirizzo || a.titolo}</div>
+                <Link key={f.uid} to={`/annuncio/${encodeURIComponent(f.uid)}`} className={`card block p-4 hover:border-brand-300 ${bordoStato(t)}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="truncate font-medium">{a.indirizzo || a.titolo}</div>
+                    <BadgeStato stato={t.stato} />
+                  </div>
                   <div className="text-xs text-slate-500">{a.microzona}</div>
                   <div className="mt-2 flex items-baseline justify-between">
                     <span className="text-sm">{num(a.mq)} mq → {f.n_unita} × {num(f.mq_unita)} mq</span>
