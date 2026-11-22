@@ -12,6 +12,19 @@ TIPOLOGIE_NO = ("progetto", "box", "garage", "posto auto", "terreno", "ufficio",
                 "magazzino", "laboratorio", "locale commerciale")
 
 
+# vendita della sola nuda proprietà (l'usufrutto resta al venditore o a un terzo): non è un immobile
+# che si può comprare e usare, quindi va scartato sempre, anche se è un'asta
+_NUDA = re.compile(
+    r"(?<!non\s)(?<!no\s)\bnud[ao]\s*-?\s*propr?(?:iet[aà]|ieta['’]|\.)"
+    r"|\busufrutto\s+(?:riservato|vitalizio|a\s+favore|in\s+capo)\b"
+    r"|\briserva\s+(?:di|d['’])\s?usufrutto\b|\bcon\s+(?:diritto\s+di\s+)?usufrutto\s+(?:al|alla|ai|del|della)\b"
+    r"|\busufruttuari[oae]\b", re.I)
+
+
+def nuda_proprieta(testo: str | None) -> bool:
+    return bool(_NUDA.search(testo or ""))
+
+
 def valida(l: Listing, cfg: dict) -> tuple[bool, str | None]:
     """Restituisce (tenere, motivo_scarto). Aggiunge flag di dubbio a l.flags.
 
@@ -23,6 +36,8 @@ def valida(l: Listing, cfg: dict) -> tuple[bool, str | None]:
     esito = classifica_listing(l)
     l.tipo_vendita, l.indizi_vendita = esito.tipo, esito.indizi
     testo = f"{l.titolo} {l.descrizione}".lower()
+    if nuda_proprieta(f"{l.titolo or ''} {l.descrizione or ''} {l.tipologia or ''}"):
+        return False, "nuda proprietà"
     if not l.prezzo or l.prezzo <= 1000:
         return False, "prezzo mancante"
     if l.tipologia and any(t in l.tipologia.lower() for t in TIPOLOGIE_NO):
