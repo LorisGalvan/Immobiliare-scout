@@ -58,14 +58,36 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
 
-      - name: Controllo segreti
+      - name: Controllo segreti e archivio online
+        id: pronto
         run: |
+          # Il giro automatico del mattino, finché la preparazione non è finita, si salta in silenzio
+          # (niente email di errore ogni giorno); lanciato a mano invece spiega cosa manca.
+          manca=""
           if [ -z "$SCOUT_SUPABASE_SERVICE_KEY" ]; then
-            echo "::error::Manca il segreto SCOUT_SUPABASE_SERVICE_KEY (Settings -> Secrets and variables -> Actions)."
+            manca="Manca il segreto SCOUT_SUPABASE_SERVICE_KEY (Settings -> Secrets and variables -> Actions)."
+          else
+            AUTH=()
+            case "$SCOUT_SUPABASE_SERVICE_KEY" in eyJ*) AUTH=(-H "Authorization: Bearer $SCOUT_SUPABASE_SERVICE_KEY") ;; esac
+            codice=$(curl -s -o /dev/null -w "%{http_code}" -H "apikey: $SCOUT_SUPABASE_SERVICE_KEY" "${AUTH[@]}" \
+              -r 0-0 "$SCOUT_SUPABASE_URL/storage/v1/object/archivio/scout.sqlite.gz" || echo 000)
+            if [ "$codice" = "400" ] || [ "$codice" = "404" ]; then
+              manca="Non c'è ancora l'archivio online: dal PC di casa lancia una volta CARICA_ARCHIVIO.bat."
+            fi
+          fi
+          if [ -n "$manca" ]; then
+            if [ "${{ github.event_name }}" = "schedule" ]; then
+              echo "::notice::Giro automatico saltato. $manca"
+              echo "ok=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::error::$manca"
             exit 1
           fi
+          echo "ok=true" >> "$GITHUB_OUTPUT"
 
       - name: Impostazioni del giro (nessun segreto scritto su file)
+        if: steps.pronto.outputs.ok == 'true'
         run: |
           TELEGRAM=false
           [ -n "$SCOUT_TELEGRAM_TOKEN" ] && [ -n "$SCOUT_TELEGRAM_CHAT_ID" ] && TELEGRAM=true
@@ -80,6 +102,7 @@ jobs:
           EOF
 
       - name: Raccolta annunci
+        if: steps.pronto.outputs.ok == 'true'
         run: |
           case "$AZIONE" in
             "raccolta gratuita"*) SITI="subito,pvp" ;;
@@ -98,6 +121,7 @@ jobs:
           python -m scout scrape --siti "$SITI"
 
       - name: Ricalcolo e pubblicazione sul sito
+        if: steps.pronto.outputs.ok == 'true'
         run: |
           if [ "$AZIONE" = "solo ricalcolo e pubblicazione" ] && [ -z "$SITI_MANUALI" ]; then
             python -m scout analizza --no-alert
@@ -106,5 +130,5 @@ jobs:
           fi
 
       - name: Riepilogo archivio
-        if: always()
+        if: always() && steps.pronto.outputs.ok == 'true'
         run: python -m scout stato || true
