@@ -13,15 +13,27 @@ Risultato:
 """
 from __future__ import annotations
 
+import difflib
 import re
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 # (regex, etichetta mostrata all'utente)
 FORTI = [
     (r"\baste?\s+giudiziari[ae]\b", "asta giudiziaria"),
     (r"\bvendit[ae]\s+giudiziari[ae]\b", "vendita giudiziaria"),
-    (r"\besecuzion[ei]\s+immobiliar[ei]\b|\bprocedura\s+esecutiva\b|\besecuzione\s+forzata\b", "esecuzione immobiliare"),
-    (r"\br\.?\s?g\.?\s?e\.?\s*(?:n\.?|nr\.?|num\.?)?\s*\d+\s*/\s*\d{2,4}\b", "numero R.G.E."),
+    (r"\besecuzion[ei]\s+immobiliar[ei]\b|\bprocedur[ae]\s+esecutiv[ae]\b|\besecuzione\s+forzata\b"
+     r"|\bproc\.\s*esec\.", "esecuzione immobiliare"),
+    (r"\br\.?\s?g\.?\s?(?:e|es|esec)\.?\s*(?:n\.?|nr\.?|n°|num\.?|numero)?\s*°?\s*\d+\s*/\s*\d{2,4}\b", "numero R.G.E."),
+    # "Procedura n. 264/2025", "proc. esec. imm. nr 264/25", "E.I. 264/2025", "es. imm. n° 12/2024"
+    (r"\b(?:procedur[ae]|proc\.)\s*(?:esecutiv[ae]\s*|esec\.\s*|immobiliar[ei]\s*|imm\.\s*|concorsual[ei]\s*"
+     r"|fallimentar[ei]\s*|n\.?\s*r\.?\s*g\.?\s*e?\.?\s*)*(?:n\.?|nr\.?|n°|num\.?|numero)\s*°?\s*\d{1,5}\s*/\s*(?:19|20)?\d{2}\b"
+     r"|\b(?:e\.\s?i\.|es\.\s?imm\.|esec\.\s?imm\.)\s*(?:n\.?|nr\.?|n°)?\s*°?\s*\d{1,5}\s*/\s*(?:19|20)?\d{2}\b",
+     "numero di procedura"),
+    (r"\bgiudice\s+dell['’]?\s?esecuzione\b|\bg\.\s?e\.\s+(?:dott|dr|avv)", "giudice dell'esecuzione"),
+    # "Tribunale di Verona ... n. 264/2025" (numero di ruolo vicino al tribunale)
+    (r"\btrib(?:unale|\.)\s+(?:di|ordinario)\b[^.\n]{0,80}?\b(?:n\.?|nr\.?|n°)\s*°?\s*\d{1,5}\s*/\s*(?:19|20)\d{2}\b",
+     "tribunale + numero di procedura"),
     (r"\b(?:professionista\s+)?delegat[oa]\s+(?:alla|per\s+la)\s+vendita\b", "delegato alla vendita"),
     (r"\bcustode\s+giudiziari[oa]\b|\bistituto\s+vendite\s+giudiziarie\b|\bi\.?v\.?g\.?\b", "custode / IVG"),
     (r"\bprezzo\s+(?:base|d['’]asta)\b|\bbase\s+d['’]asta\b", "prezzo base d'asta"),
@@ -57,6 +69,26 @@ NEGAZIONI = [
 AGENZIA_ASTE = re.compile(r"\baste?\b|\bauction|\bgiudiziari", re.I)
 
 
+# parole chiave scritte con un refuso ("esecutva", "procedra", "giudizaria", "deleagto"):
+# il testo viene cercato anche in una copia dove queste parole sono corrette
+VOCABOLARIO = ("esecutiva", "esecutive", "esecuzione", "esecuzioni", "procedura", "procedure", "giudiziaria",
+               "giudiziarie", "giudiziario", "delegato", "delegata", "tribunale", "immobiliare", "fallimentare",
+               "fallimento", "pignorato", "pignoramento", "concorsuale", "esperimento", "incanto", "custode")
+_PAROLA = re.compile(r"[a-zà-ü]{6,16}")
+
+
+@lru_cache(maxsize=50_000)
+def _correggi_parola(w: str) -> str:
+    if w in VOCABOLARIO:
+        return w
+    simili = difflib.get_close_matches(w, VOCABOLARIO, n=1, cutoff=0.84)
+    return simili[0] if simili else w
+
+
+def _correggi_refusi(testo: str) -> str:
+    return _PAROLA.sub(lambda m: _correggi_parola(m.group(0)), testo)
+
+
 @dataclass
 class Esito:
     tipo: str = "compravendita"
@@ -67,6 +99,10 @@ class Esito:
 def classifica(titolo: str | None = None, descrizione: str | None = None, tipologia: str | None = None,
                agenzia: str | None = None, flags: list | None = None) -> Esito:
     testo = " ".join(x for x in (titolo, descrizione, tipologia) if x).lower()
+    testo = re.sub(r"\s+", " ", testo)
+    corretto = _correggi_refusi(testo)
+    if corretto != testo:
+        testo = testo + " \n " + corretto      # cerca sia nel testo originale sia in quello corretto
     for neg in NEGAZIONI:
         testo = re.sub(neg, " ", testo)
     indizi, punti = [], 0
