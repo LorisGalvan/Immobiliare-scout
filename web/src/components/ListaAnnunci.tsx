@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { eur, FONTE, num, piano } from "../lib/format";
 import { useData } from "../lib/store";
 import type { Annuncio } from "../lib/types";
+import { nomeUtente, NESSUNA, perAnnuncio } from "../lib/valutazioni";
 import { BadgeStato, Scostamento, Vuoto } from "./ui";
 
 /** Tabella su desktop, schede su telefono. */
@@ -31,10 +32,12 @@ export default function ListaAnnunci({ annunci: tutti, vuoto = "Nessun annuncio"
 function Elenco({ annunci, vuoto, mostraZona }: { annunci: Annuncio[]; vuoto: string; mostraZona: boolean }) {
   const nav = useNavigate();
   const { valutazioni } = useData();
-  const statoDi = (uid: string) => {
-    const v = valutazioni.filter((x) => x.uid === uid).sort((a, b) => b.aggiornato.localeCompare(a.aggiornato))[0];
-    return v?.stato;
-  };
+  const team = perAnnuncio(valutazioni);
+  const teamDi = (uid: string) => team.get(uid) ?? NESSUNA;
+  const statoDi = (uid: string) => teamDi(uid).stato;
+  // al passaggio del mouse: chi ha valutato e cosa ha scritto
+  const dettaglio = (uid: string) =>
+    teamDi(uid).voci.map((v) => `${nomeUtente(v)}${v.nota?.trim() ? ": " + v.nota.trim() : ""}`).join("\n") || undefined;
   if (!annunci.length) return <Vuoto>{vuoto}</Vuoto>;
   return (
     <>
@@ -75,7 +78,11 @@ function Elenco({ annunci, vuoto, mostraZona }: { annunci: Annuncio[]; vuoto: st
                   <span className="ml-1 text-xs text-slate-400">{FONTE[a.source]?.split(".")[0]}</span>
                 </td>
                 <td className="td text-right tabular-nums text-slate-500">{a.giorni_online ?? "–"}</td>
-                <td className="td"><BadgeStato stato={statoDi(a.uid)} /></td>
+                <td className="td" title={dettaglio(a.uid)}>
+                  <BadgeStato stato={statoDi(a.uid)} />
+                  {teamDi(a.uid).autore && <span className="ml-1 text-xs text-slate-400">{teamDi(a.uid).autore}</span>}
+                  {teamDi(a.uid).voci.some((v) => v.nota?.trim()) && <span className="ml-1 text-xs text-slate-400" aria-label="con nota">✎</span>}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -99,6 +106,7 @@ function Elenco({ annunci, vuoto, mostraZona }: { annunci: Annuncio[]; vuoto: st
               {(a.ribasso_pct ?? 0) < 0 && <span className="text-xs text-rose-600">↓{Math.abs(a.ribasso_pct!).toFixed(0)}%</span>}
               {a.privato && <span className="chip bg-violet-100 text-violet-800">Privato</span>}
               <BadgeStato stato={statoDi(a.uid)} />
+              {teamDi(a.uid).autore && <span className="text-xs text-slate-400">{teamDi(a.uid).autore}</span>}
             </div>
           </button>
         ))}

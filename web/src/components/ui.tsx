@@ -1,6 +1,8 @@
 import { ReactNode } from "react";
 import { coloreScostamento, pct } from "../lib/format";
+import { dataOra } from "../lib/format";
 import type { StatoValutazione } from "../lib/types";
+import { nomeUtente, type Team } from "../lib/valutazioni";
 
 export function Scostamento({ v, grande }: { v: number | null | undefined; grande?: boolean }) {
   return (
@@ -47,6 +49,38 @@ export const STATI_VAL: { v: StatoValutazione; label: string; cls: string }[] = 
 export function BadgeStato({ stato }: { stato: StatoValutazione | null | undefined }) {
   const s = STATI_VAL.find((x) => x.v === stato);
   return s ? <span className={`chip ${s.cls}`}>{s.label}</span> : null;
+}
+
+/** Bordo colorato della scheda secondo lo stato del team (scartati sbiaditi). */
+export const BORDO_STATO: Record<StatoValutazione, string> = {
+  da_vedere: "border-l-4 border-l-slate-400",
+  interessante: "border-l-4 border-l-amber-400 bg-amber-50/40",
+  visitato: "border-l-4 border-l-indigo-400 bg-indigo-50/40",
+  in_trattativa: "border-l-4 border-l-emerald-500 bg-emerald-50/40",
+  scartato: "border-l-4 border-l-rose-400 bg-slate-50 opacity-60 hover:opacity-100",
+};
+export const bordoStato = (t: Team) =>
+  t.stato ? BORDO_STATO[t.stato] : t.voci.length ? "border-l-4 border-l-sky-300" : "";
+
+/** Riquadro sulla scheda: chi ha valutato, con quale stato e la sua nota. */
+export function ValutazioneTeam({ team, max = 2 }: { team: Team; max?: number }) {
+  if (!team.voci.length) return <div className="mt-3 text-xs italic text-slate-400">Non ancora valutato</div>;
+  const altre = team.voci.length - max;
+  return (
+    <div className="mt-3 space-y-1.5 rounded-lg border border-slate-100 bg-white/70 p-2 text-xs">
+      {team.voci.slice(0, max).map((v) => (
+        <div key={v.user_id}>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="font-semibold text-slate-700">{nomeUtente(v)}</span>
+            <BadgeStato stato={v.stato} />
+            <span className="ml-auto text-slate-400">{dataOra(v.aggiornato)}</span>
+          </div>
+          {v.nota?.trim() && <p className="mt-0.5 line-clamp-2 whitespace-pre-line text-slate-600">{v.nota}</p>}
+        </div>
+      ))}
+      {altre > 0 && <div className="text-slate-400">+{altre} altre valutazioni</div>}
+    </div>
+  );
 }
 
 export function Legenda() {
