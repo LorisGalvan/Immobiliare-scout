@@ -69,13 +69,19 @@ jobs:
       - run: pip install -r requirements.txt
 
       - name: Microzone dei comuni nuovi (da OpenStreetMap, solo se mancano)
-        timeout-minutes: 120        # se OpenStreetMap è lento il giro va avanti lo stesso
+        # se OpenStreetMap è lento il giro va avanti lo stesso
+        timeout-minutes: ${{ startsWith(github.event.inputs.azione || '', 'solo microzone') && 120 || 45 }}
         continue-on-error: true
         run: |
           # un comune appena aggiunto in config.yaml riceve le sue microzone; quelli che le hanno già non si toccano
           # nei giri normali al massimo 20 minuti (i comuni rimasti al giro dopo), con "solo microzone" fino a 100
           MINUTI=20; case "$AZIONE" in "solo microzone"*) MINUTI=100 ;; esac
           python -m scout zone-hinterland --minuti "$MINUTI" || echo "::warning::Microzone non disegnate (OpenStreetMap non risponde): si riprova al prossimo giro"
+
+      - name: Salva nel progetto le microzone disegnate
+        if: always()
+        continue-on-error: true
+        run: |
           git add data/zone/*.geojson
           if git diff --cached --quiet; then echo "Nessuna microzona nuova."; exit 0; fi
           git config user.name "bot-immobili"
