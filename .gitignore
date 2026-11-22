@@ -14,3 +14,5 @@ pagine_salvate/*
 !pagine_salvate/LEGGIMI.txt
 data/zone/*.backup.geojson
 data/cache/
+data/.archivio_online
+data/*.scaricato
