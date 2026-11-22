@@ -53,6 +53,7 @@ def main(argv=None):
     p.add_argument("--livello", choices=["base", "medio", "fine"], default="medio")
     p.add_argument("--area-min", type=float, default=150_000, help="area minima zona in m² (default 150000)")
     p.add_argument("--rifai", action="store_true", help="ridisegna anche le zone automatiche già fatte (le tue restano)")
+    p.add_argument("--minuti", type=float, default=20, help="tempo massimo: i comuni rimasti si fanno la volta dopo")
 
     p = sub.add_parser("scrape", help="scarica gli annunci dai siti attivi")
     p.add_argument("--siti", help="es. immobiliare,subito")
@@ -198,7 +199,7 @@ def _esegui(a, cfg, log):
 
     elif a.cmd == "zone-hinterland":
         from .geo.osm_zoning import disegna_hinterland
-        for riga in disegna_hinterland(cfg, a.livello, a.area_min, a.rifai):
+        for riga in disegna_hinterland(cfg, a.livello, a.area_min, a.rifai, a.minuti):
             log.info(riga)
 
     elif a.cmd == "scrape":

@@ -264,7 +264,7 @@ def proponi_microzone(comune: str, user_agent: str, livello: str = "medio",
 
 
 def disegna_hinterland(cfg: dict, livello: str = "medio", area_min_m2: float = 150_000,
-                       rifai: bool = False) -> list[str]:
+                       rifai: bool = False, minuti: float = 20) -> list[str]:
     """Per ogni comune dell'hinterland senza zone automatiche: confine comunale da OSM, tagliato da
     strade principali, ferrovie e fiumi (come per Verona). Le zone disegnate a mano restano:
     le nuove coprono solo il resto del comune. Restituisce un riepilogo riga per riga."""
@@ -272,7 +272,7 @@ def disegna_hinterland(cfg: dict, livello: str = "medio", area_min_m2: float = 1
     from ..territori import RIQUADRO_VR, comuni_hinterland, file_zone, nome_breve
     ua = get(cfg, "scraping.user_agent")
     righe = []
-    fine = time.time() + float(get(cfg, "hinterland.minuti_microzone", 20)) * 60
+    fine = time.time() + float(minuti) * 60
     for c in comuni_hinterland(cfg):
         if time.time() > fine:
             righe.append("tempo per le microzone finito: i comuni rimasti si fanno al prossimo giro")
