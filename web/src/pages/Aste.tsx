@@ -104,7 +104,7 @@ export default function Aste() {
               <div className="mt-2 flex flex-wrap gap-1">
                 {a.diritto && <span className={`chip ${a.diritto === "piena proprietà" ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>{a.diritto}</span>}
                 {a.occupazione && <span className={`chip ${a.occupazione === "libero" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{a.occupazione}</span>}
-                {!!a.doppioni?.length && <span className="chip bg-slate-100 text-slate-600">anche su {a.doppioni.length} altro/i sito/i</span>}
+                {!!a.doppioni?.length && <span className="chip bg-sky-100 text-sky-800">stesso lotto in {a.doppioni.length + 1} annunci</span>}
               </div>
               {!!a.indizi_vendita?.length && (
                 <div className="mt-2 flex flex-wrap gap-1">

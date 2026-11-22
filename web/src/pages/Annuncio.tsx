@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { prezzi as caricaPrezzi, salvaValutazione } from "../lib/data";
 import { data as fData, dataOra, eur, FONTE, num, pct, piano, STATO } from "../lib/format";
+import { copie } from "../lib/doppioni";
 import { useAuth, useData } from "../lib/store";
 import type { Prezzo, StatoValutazione } from "../lib/types";
 import GraficoPrezzi from "../components/GraficoPrezzi";
@@ -155,11 +156,18 @@ export default function Annuncio() {
                 <ul className="mb-3 space-y-1 text-sm text-amber-800">{a.flags.map((f) => <li key={f}>⚠ {f}</li>)}</ul>
               </>}
               {a.doppioni.length > 0 && <>
-                <h2 className="mb-2 font-semibold">Stesso immobile anche su</h2>
-                <ul className="space-y-1 text-sm">{a.doppioni.map((d) => {
-                  const u = d.match(/https?:\/\/\S+/)?.[0];
-                  return <li key={d} className="break-all">{u ? <a className="text-brand-600 hover:underline" href={u} target="_blank" rel="noreferrer">{d}</a> : d}</li>;
-                })}</ul>
+                <h2 className="mb-1 font-semibold">Stesso immobile, {copie(a).length} annunci</h2>
+                <p className="mb-2 text-xs text-slate-500">Il bot li ha riconosciuti come lo stesso immobile e li mostra in una scheda sola.</p>
+                <ul className="divide-y divide-slate-100 text-sm">{copie(a).map((c, i) => (
+                  <li key={i} className="flex items-center gap-2 py-1.5">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium">{c.chi === "privato" ? "Privato" : c.chi}</div>
+                      <div className="text-xs text-slate-500">{FONTE[c.source] ?? c.source}{c.principale && " · questa scheda"}</div>
+                    </div>
+                    <span className={`tabular-nums ${c.prezzo != null && c.prezzo === Math.min(...copie(a).map((x) => x.prezzo ?? Infinity)) ? "font-semibold text-emerald-700" : ""}`}>{eur(c.prezzo)}</span>
+                    {c.url && <a className="text-brand-600 hover:underline" href={c.url} target="_blank" rel="noreferrer">Apri</a>}
+                  </li>
+                ))}</ul>
               </>}
             </div>
           )}

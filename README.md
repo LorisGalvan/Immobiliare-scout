@@ -202,6 +202,15 @@ Se va bene, `scraping.siti.wikicasa_apify: true` e alza `wikicasa.pagine`.
 Actor `epicscrapers/idealista-scraper` (circa 1 $ ogni 1.000 annunci) e `logiover/casa-it-scraper-italy-real-estate`
 (circa 1,50 $ ogni 1.000). Doppio clic su `PROVA_PORTALI.bat`: fino a 3.000 annunci per portale.
 Gli annunci presenti su più portali sono riconosciuti come doppioni e contano una volta sola.
+
+**Stesso immobile da più agenzie.** Il bot dà punti a ogni indizio: numero di procedura uguale
+(aste), stessa via e civico, stesso edificio sulla mappa, mq e prezzo vicini (anche se un'agenzia
+scrive 95 mq e un'altra 100, o chiede il 5% in più), stesso piano e locali, descrizione copiata.
+Piani, lotti, procedure o civici diversi escludono. mq e prezzo uguali da soli non bastano.
+Sul sito resta una scheda sola (col prezzo più basso) con l'elenco di agenzie, prezzi e link;
+in lista compare l'etichetta "3 inserzionisti". Se unisce troppo o troppo poco, in `config.yaml`
+sotto `pulizia: doppioni:` si può mettere `soglia_punti: 6` (più severo) o `4` (più largo); di
+serie è 5.
 Limiti e opzioni (facoltativi) nella sezione `portali_apify:` di config.yaml, es. `portali_apify: {idealista: {max_annunci: 500}}`.
 
 ### 4.2 Semi-manuale (se un sito blocca, e per Idealista)
@@ -423,6 +432,7 @@ scout/
   importa.py          import pagine salvate e CSV (Facebook)
   excel_import.py     import dei tuoi Excel
   cleaning.py         validazione e doppioni
+  doppioni.py         riconoscimento dello stesso immobile (punteggio)
   analysis.py         mediane, scostamenti, correzioni, OMI
   frazionamento.py    modulo frazionamento
   storage.py          SQLite
