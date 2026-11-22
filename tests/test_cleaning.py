@@ -27,3 +27,26 @@ def test_doppioni_tra_siti():
     r = next(x for x in reps if x.mq < 90)
     assert r.uid == "immobiliare:1" and len(r.doppioni) == 1
     assert any("inserzionisti" in f for f in r.flags)
+
+
+import pytest as _pytest
+
+
+@_pytest.mark.parametrize("titolo,descr,scarta", [
+    ("Nuda proprietà trilocale", "Bel trilocale", True),
+    ("Trilocale", "Vendesi NUDA PROPRIETA' di appartamento, usufruttuaria anni 80.", True),
+    ("Trilocale", "Vendita della nuda-proprietà", True),
+    ("Trilocale", "Nuda propietà con usufrutto riservato al venditore", True),
+    ("Trilocale", "Appartamento con usufrutto vitalizio a favore della signora", True),
+    ("Appartamento all'asta", "Tribunale di Verona, R.G.E. 12/2024, nuda proprietà, prezzo base 50.000", True),
+    ("Trilocale", "Piena proprietà, libero da usufrutto, subito disponibile", False),
+    ("Trilocale", "Vendita in piena proprietà, non nuda proprietà", False),
+])
+def test_nuda_proprieta_scartata(titolo, descr, scarta):
+    from scout.cleaning import valida
+    from scout.models import Listing
+    l = Listing(source="x", source_id="1", url="u", titolo=titolo, descrizione=descr, prezzo=150000, mq=80)
+    ok, motivo = valida(l, {"pulizia": {}})
+    assert (motivo == "nuda proprietà") is scarta, (ok, motivo)
+    if scarta:
+        assert not ok
