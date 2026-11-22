@@ -49,8 +49,14 @@ def main(argv=None):
     sub.add_parser("zone-elenco", help="elenca le microzone")
     sub.add_parser("editor", help="crea la mappa HTML per modificare le microzone")
 
+    p = sub.add_parser("zone-hinterland", help="disegna da OpenStreetMap le microzone dei comuni dell'hinterland che non le hanno")
+    p.add_argument("--livello", choices=["base", "medio", "fine"], default="medio")
+    p.add_argument("--area-min", type=float, default=150_000, help="area minima zona in m² (default 150000)")
+    p.add_argument("--rifai", action="store_true", help="ridisegna anche le zone automatiche già fatte (le tue restano)")
+
     p = sub.add_parser("scrape", help="scarica gli annunci dai siti attivi")
     p.add_argument("--siti", help="es. immobiliare,subito")
+    p.add_argument("--comuni", help="tutti (default), verona, hinterland, oppure nomi separati da virgola")
 
     p = sub.add_parser("importa-html", help="importa pagine di ricerca salvate dal browser")
     p.add_argument("cartella")
@@ -69,6 +75,7 @@ def main(argv=None):
 
     p = sub.add_parser("run", help="esecuzione giornaliera completa: scrape + analisi + alert")
     p.add_argument("--siti")
+    p.add_argument("--comuni", help="tutti (default), verona, hinterland, oppure nomi separati da virgola")
 
     p = sub.add_parser("esporta-json", help="esporta i risultati in JSON (dati demo per il sito web)")
     p.add_argument("file", nargs="?", default="web/public/demo.json")
@@ -189,9 +196,14 @@ def _esegui(a, cfg, log):
         out.parent.mkdir(parents=True, exist_ok=True)
         print(editor_microzone(out, carica_zone(cfg)))
 
+    elif a.cmd == "zone-hinterland":
+        from .geo.osm_zoning import disegna_hinterland
+        for riga in disegna_hinterland(cfg, a.livello, a.area_min, a.rifai):
+            log.info(riga)
+
     elif a.cmd == "scrape":
         st = Storage(resolve(cfg, cfg["database"]))
-        scrape_tutto(cfg, st, carica_zone(cfg), a.siti.split(",") if a.siti else None)
+        scrape_tutto(cfg, st, carica_zone(cfg), a.siti.split(",") if a.siti else None, _comuni(cfg, a.comuni))
 
     elif a.cmd == "importa-html":
         from .importa import importa_html
@@ -223,7 +235,7 @@ def _esegui(a, cfg, log):
     elif a.cmd == "run":
         st = Storage(resolve(cfg, cfg["database"]))
         zone = carica_zone(cfg)
-        scrape_tutto(cfg, st, zone, a.siti.split(",") if a.siti else None)
+        scrape_tutto(cfg, st, zone, a.siti.split(",") if a.siti else None, _comuni(cfg, a.comuni))
         r = analizza_e_esporta(cfg, st, zone)
         print(f"Excel: {r['excel']}\nMappa: {r['mappa']}\nOccasioni: {r['occasioni']} - Frazionabili: {r['frazionabili']}")
 
@@ -239,6 +251,10 @@ def _esegui(a, cfg, log):
         for row in st.conn.execute("SELECT source, SUM(attivo) attivi, COUNT(*) totali, "
                                    "SUM(microzona IS NULL) senza_zona FROM annunci GROUP BY source"):
             print(dict(row))
+        for row in st.conn.execute("SELECT coalesce(comune, ?) comune, SUM(attivo) attivi, "
+                                   "SUM(attivo=1 AND microzona IS NULL) attivi_senza_zona FROM annunci "
+                                   "GROUP BY 1 ORDER BY 2 DESC", (cfg["territorio"]["comune"],)):
+            print(dict(row))
         for row in st.conn.execute("SELECT * FROM esecuzioni ORDER BY id DESC LIMIT 10"):
             print(dict(row))
 
@@ -247,6 +263,14 @@ def _esegui(a, cfg, log):
         t = invia_telegram(cfg, ["✅ Scout immobili: test alert Telegram"])
         e = invia_email(cfg, "Scout immobili: test", ["Test alert email"])
         print(f"Telegram inviati: {t} - Email: {'ok' if e else 'non inviata/non attiva'}")
+
+
+def _comuni(cfg, quali):
+    from .territori import scegli
+    try:
+        return scegli(cfg, quali)
+    except ValueError as e:
+        sys.exit(f"ERRORE: {e}")
 
 
 if __name__ == "__main__":

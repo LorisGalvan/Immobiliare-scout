@@ -18,7 +18,7 @@ set "SITI=idealista_apify,casa_apify"
 if "%SCELTA%"=="2" set "SITI=idealista_apify"
 if "%SCELTA%"=="3" set "SITI=casa_apify"
 echo  ===== %SITI% tramite Apify (fino a 3.000 annunci ciascuno, pochi dollari) =====
-".venv\Scripts\python.exe" -m scout scrape --siti %SITI% || goto errore
+".venv\Scripts\python.exe" -m scout scrape --siti %SITI% --comuni verona || goto errore
 echo.
 echo  ===== Analisi, Excel, mappa e pubblicazione sul sito =====
 ".venv\Scripts\python.exe" -m scout analizza --no-alert || goto errore

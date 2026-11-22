@@ -414,6 +414,27 @@ le pagine salvate dal browser (`pagine_salvate/`) si importano ancora dal PC. Pe
 `archivio_cloud: {attivo: false}` in `config.local.yaml`. GitHub sospende i giri automatici dopo 60 giorni
 senza modifiche al progetto: in quel caso basta riattivarli dalla scheda Actions.
 
+### 9.2 Comuni dell'hinterland
+
+Oltre a Verona il bot legge i comuni elencati in `config.yaml` → `hinterland.comuni` (San Giovanni Lupatoto,
+San Martino Buon Albergo, Villafranca, Bussolengo, Sona, Sommacampagna, Pescantina, Negrar, Castel d'Azzano,
+Grezzana, Lavagno, Buttapietra). Stesso archivio e stesso sito: le loro microzone hanno davanti il nome del
+comune (es. "Villafranca m3"), quindi mediane, occasioni, aste e frazionabili restano sempre per microzona.
+
+- **Aggiungere o togliere un comune**: una riga in `hinterland.comuni` (nome ufficiale, es. "Zevio").
+- **Microzone**: se un comune non le ha, a ogni giro GitHub le disegna da OpenStreetMap (strade principali,
+  ferrovie, fiumi, come per Verona) e le salva in `data/zone/<comune>.geojson`. Le zone fatte a mano
+  (es. le 4 di San Giovanni Lupatoto) restano; quelle nuove coprono il resto del comune. Per disegnarle
+  senza fare altro: Run workflow → "solo microzone dei comuni nuovi". Da riga di comando: `python -m scout zone-hinterland`.
+- **Costi Apify**: Run workflow ha la scelta "Verona e hinterland", "solo Verona", "solo hinterland".
+  Ogni comune ha limiti propri più bassi (`hinterland.max_annunci`, una ricerca unica senza fasce di prezzo),
+  Wikicasa resta solo per Verona (`wikicasa_pagine: 0`). Un giro su un solo gruppo di comuni non segna come
+  rimossi gli annunci degli altri.
+- **Giro gratuito del mattino** (Subito + aste PVP): comprende già tutti i comuni. Le aste del PVP si dividono
+  per comune leggendo la città del lotto (Villafranca di Verona non viene più contata come Verona).
+- Dal PC: `python -m scout scrape --comuni hinterland` (oppure `verona`, o nomi separati da virgola);
+  i `PROVA_*.bat` leggono solo Verona.
+
 ---
 
 ## 10. Struttura del progetto
