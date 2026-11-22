@@ -378,6 +378,33 @@ Avvia programma: `scripts\run_giornaliero.bat` (nessun percorso da modificare; i
 
 I log sono in `data/log/scout.log`.
 
+### 9.1 Bot nel cloud, senza il PC di casa (GitHub Actions)
+
+L'archivio degli annunci (`data/scout.sqlite`) viene tenuto anche online, in uno spazio **privato** di
+Supabase (bucket `archivio`, piano gratuito). Il bot gira sui computer di GitHub (gratis, il progetto è pubblico):
+ogni mattina un giro gratuito (Subito + aste PVP) con ricalcolo e pubblicazione sul sito, e quando vuoi
+da telefono o da qualsiasi PC: **GitHub → Actions → "Bot immobili" → Run workflow**, scegliendo
+"solo ricalcolo", "raccolta gratuita" o un giro con Apify (a pagamento, mai automatico).
+
+Da fare una volta sola:
+
+1. GitHub → **Settings → Secrets and variables → Actions → New repository secret**:
+   - `SCOUT_SUPABASE_SERVICE_KEY`: la stessa chiave `service_key` che hai in `config.local.yaml`;
+   - `SCOUT_APIFY_TOKEN`: il token `apify.token` di `config.local.yaml` (solo per i giri Apify);
+   - facoltativi `SCOUT_TELEGRAM_TOKEN` e `SCOUT_TELEGRAM_CHAT_ID` per gli avvisi.
+2. Sul PC di casa: Pull in GitHub Desktop, poi **`CARICA_ARCHIVIO.bat`**: mette online l'archivio attuale
+   (non sovrascrive mai un archivio online già esistente; per farlo davvero: `CARICA_ARCHIVIO.bat forza`).
+
+Da quel momento anche i .bat del PC scaricano l'archivio online prima di lavorare e lo ricaricano alla fine
+(la copia locale precedente resta in `data/scout.backup.sqlite`). Un "lucchetto" impedisce che PC e GitHub
+lavorino insieme: se un giro è in corso, l'altro si ferma con un messaggio (il blocco scade da solo dopo 4 ore).
+Online restano anche 7 copie di sicurezza, una per giorno della settimana (`archivio/copie/`).
+
+Note: il bot nel cloud usa le impostazioni di `config.yaml` **su GitHub** (non quelle modificate solo sul PC);
+le pagine salvate dal browser (`pagine_salvate/`) si importano ancora dal PC. Per lavorare solo in locale:
+`archivio_cloud: {attivo: false}` in `config.local.yaml`. GitHub sospende i giri automatici dopo 60 giorni
+senza modifiche al progetto: in quel caso basta riattivarli dalla scheda Actions.
+
 ---
 
 ## 10. Struttura del progetto

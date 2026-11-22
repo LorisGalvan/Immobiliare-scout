@@ -76,10 +76,43 @@ def main(argv=None):
     sub.add_parser("stato", help="statistiche del database")
     p = sub.add_parser("test-alert", help="invia un messaggio di prova su Telegram/email")
 
+    p = sub.add_parser("archivio-carica", help="mette online (Supabase, spazio privato) l'archivio di questo PC")
+    p.add_argument("--forza", action="store_true", help="sostituisce l'archivio online con quello locale")
+
     a = ap.parse_args(argv)
     cfg = load_config(a.config)
     _setup_log(cfg, a.verbose)
     log = logging.getLogger("scout")
+
+    from .archivio_cloud import COMANDI_LETTURA, COMANDI_MODIFICA, ArchivioCloud, ArchivioError
+    db_path = resolve(cfg, cfg["database"])
+    if a.cmd == "archivio-carica":
+        try:
+            ArchivioCloud(cfg, db_path).prima_volta(forza=a.forza)
+        except ArchivioError as e:
+            sys.exit(f"ERRORE: {e}")
+        print("Archivio caricato online. Da ora i .bat e GitHub usano questa copia condivisa.")
+        return
+    archivio = None
+    if a.cmd in COMANDI_LETTURA | COMANDI_MODIFICA:
+        archivio = ArchivioCloud(cfg, db_path)
+        try:
+            archivio.scarica(modifica=a.cmd in COMANDI_MODIFICA)
+        except ArchivioError as e:
+            sys.exit(f"ERRORE: {e}")
+    try:
+        _esegui(a, cfg, log)
+    finally:
+        if archivio is not None:
+            try:
+                archivio.carica()
+            except ArchivioError as e:
+                sys.exit(f"ERRORE: {e}")
+            finally:
+                archivio.rilascia()
+
+
+def _esegui(a, cfg, log):
 
     from .geo.microzones import MicrozoneSet
     from .pipeline import analizza_e_esporta, carica_zone, ingest, scrape_tutto

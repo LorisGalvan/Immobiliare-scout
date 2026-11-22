@@ -1,0 +1,134 @@
+# Il bot gira sui computer di GitHub, senza bisogno del PC di casa.
+# L'archivio degli annunci sta in uno spazio PRIVATO di Supabase (bucket "archivio"):
+# a ogni giro viene scaricato, aggiornato e ricaricato.
+#
+# Da telefono o da qualsiasi PC: GitHub -> scheda Actions -> "Bot immobili" -> Run workflow.
+# Una tantum (vedi README, paragrafo "Bot nel cloud"):
+#   Settings -> Secrets and variables -> Actions -> New repository secret:
+#     SCOUT_SUPABASE_SERVICE_KEY  (obbligatorio: la stessa chiave di config.local.yaml)
+#     SCOUT_APIFY_TOKEN           (solo per i giri con Apify)
+#     SCOUT_TELEGRAM_TOKEN, SCOUT_TELEGRAM_CHAT_ID  (facoltativi: avvisi su Telegram)
+#   e dal PC di casa, una volta sola: CARICA_ARCHIVIO.bat
+name: Bot immobili
+
+on:
+  schedule:
+    - cron: "0 5 * * *"     # ogni mattina alle 6 (ora italiana d'inverno, 7 d'estate): giro gratuito
+  workflow_dispatch:
+    inputs:
+      azione:
+        description: "Cosa fare"
+        type: choice
+        default: "solo ricalcolo e pubblicazione"
+        options:
+          - "solo ricalcolo e pubblicazione"
+          - "raccolta gratuita (Subito + aste PVP)"
+          - "Apify: Immobiliare (circa 2-5 $)"
+          - "Apify: Idealista + Casa.it (circa 2 $)"
+          - "Apify: Wikicasa (circa 3-4 $)"
+      siti:
+        description: "Facoltativo, per esperti: elenco siti (es. subito,pvp). Se compilato vale al posto della scelta sopra"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bot-immobili         # mai due giri insieme sullo stesso archivio
+  cancel-in-progress: false
+
+jobs:
+  bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      SCOUT_SUPABASE_URL: https://unpzkdkgnorvakiqllrb.supabase.co
+      SCOUT_SUPABASE_SERVICE_KEY: ${{ secrets.SCOUT_SUPABASE_SERVICE_KEY }}
+      SCOUT_APIFY_TOKEN: ${{ secrets.SCOUT_APIFY_TOKEN }}
+      SCOUT_TELEGRAM_TOKEN: ${{ secrets.SCOUT_TELEGRAM_TOKEN }}
+      SCOUT_TELEGRAM_CHAT_ID: ${{ secrets.SCOUT_TELEGRAM_CHAT_ID }}
+      AZIONE: ${{ github.event.inputs.azione || 'raccolta gratuita (Subito + aste PVP)' }}
+      SITI_MANUALI: ${{ github.event.inputs.siti }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      - name: Controllo segreti e archivio online
+        id: pronto
+        run: |
+          # Il giro automatico del mattino, finché la preparazione non è finita, si salta in silenzio
+          # (niente email di errore ogni giorno); lanciato a mano invece spiega cosa manca.
+          manca=""
+          if [ -z "$SCOUT_SUPABASE_SERVICE_KEY" ]; then
+            manca="Manca il segreto SCOUT_SUPABASE_SERVICE_KEY (Settings -> Secrets and variables -> Actions)."
+          else
+            AUTH=()
+            case "$SCOUT_SUPABASE_SERVICE_KEY" in eyJ*) AUTH=(-H "Authorization: Bearer $SCOUT_SUPABASE_SERVICE_KEY") ;; esac
+            codice=$(curl -s -o /dev/null -w "%{http_code}" -H "apikey: $SCOUT_SUPABASE_SERVICE_KEY" "${AUTH[@]}" \
+              -r 0-0 "$SCOUT_SUPABASE_URL/storage/v1/object/archivio/scout.sqlite.gz" || echo 000)
+            if [ "$codice" = "400" ] || [ "$codice" = "404" ]; then
+              manca="Non c'è ancora l'archivio online: dal PC di casa lancia una volta CARICA_ARCHIVIO.bat."
+            fi
+          fi
+          if [ -n "$manca" ]; then
+            if [ "${{ github.event_name }}" = "schedule" ]; then
+              echo "::notice::Giro automatico saltato. $manca"
+              echo "ok=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::error::$manca"
+            exit 1
+          fi
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+
+      - name: Impostazioni del giro (nessun segreto scritto su file)
+        if: steps.pronto.outputs.ok == 'true'
+        run: |
+          TELEGRAM=false
+          [ -n "$SCOUT_TELEGRAM_TOKEN" ] && [ -n "$SCOUT_TELEGRAM_CHAT_ID" ] && TELEGRAM=true
+          cat > config.local.yaml <<EOF
+          supabase:
+            attivo: true
+          archivio_cloud:
+            attivo: true
+          alert:
+            telegram:
+              attivo: $TELEGRAM
+          EOF
+
+      - name: Raccolta annunci
+        if: steps.pronto.outputs.ok == 'true'
+        run: |
+          case "$AZIONE" in
+            "raccolta gratuita"*) SITI="subito,pvp" ;;
+            "Apify: Immobiliare"*) SITI="immobiliare_apify" ;;
+            "Apify: Idealista"*) SITI="idealista_apify,casa_apify" ;;
+            "Apify: Wikicasa"*) SITI="wikicasa_apify" ;;
+            *) SITI="" ;;
+          esac
+          [ -n "$SITI_MANUALI" ] && SITI="$SITI_MANUALI"
+          if [ -z "$SITI" ]; then echo "Nessuna raccolta: solo ricalcolo."; exit 0; fi
+          case "$SITI" in *apify*)
+            if [ -z "$SCOUT_APIFY_TOKEN" ]; then
+              echo "::error::Per i giri con Apify serve il segreto SCOUT_APIFY_TOKEN."; exit 1
+            fi ;;
+          esac
+          python -m scout scrape --siti "$SITI"
+
+      - name: Ricalcolo e pubblicazione sul sito
+        if: steps.pronto.outputs.ok == 'true'
+        run: |
+          if [ "$AZIONE" = "solo ricalcolo e pubblicazione" ] && [ -z "$SITI_MANUALI" ]; then
+            python -m scout analizza --no-alert
+          else
+            python -m scout analizza
+          fi
+
+      - name: Riepilogo archivio
+        if: always() && steps.pronto.outputs.ok == 'true'
+        run: python -m scout stato || true
