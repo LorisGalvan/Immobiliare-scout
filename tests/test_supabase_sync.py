@@ -17,7 +17,7 @@ def test_payload_serializzabile(tmp_path):
     r = analizza_e_esporta(cfg, st, zone, alert=False)
     p = costruisci_payload(cfg, st, r, zone, "run1")
     txt = json.dumps(p, allow_nan=False)          # niente NaN: PostgREST li rifiuterebbe
-    assert len(p["zone"]) == len(zone.zone) and p["annunci"] and p["mediane"] and p["frazionabili"]
+    assert len(p["zone"]) == len(zone) > 0 and p["annunci"] and p["mediane"] and p["frazionabili"]
     a = next(x for x in p["annunci"] if x["uid"] == "immobiliare:AFFARE")
     assert a["occasione"] is True and isinstance(a["flags"], list) and a["run_id"] == "run1"
     assert isinstance(p["zone"][0]["geojson"]["coordinates"], (list, tuple))

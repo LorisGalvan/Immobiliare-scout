@@ -26,13 +26,22 @@ on:
           - "Apify: Immobiliare (circa 2-5 $)"
           - "Apify: Idealista + Casa.it (circa 2 $)"
           - "Apify: Wikicasa (circa 3-4 $)"
+          - "solo microzone dei comuni nuovi (gratis, nessuna raccolta)"
+      comuni:
+        description: "Quali comuni (i giri Apify costano in proporzione)"
+        type: choice
+        default: "Verona e hinterland"
+        options:
+          - "Verona e hinterland"
+          - "solo Verona"
+          - "solo hinterland"
       siti:
         description: "Facoltativo, per esperti: elenco siti (es. subito,pvp). Se compilato vale al posto della scelta sopra"
         required: false
         default: ""
 
 permissions:
-  contents: read
+  contents: write     # serve solo a salvare nel progetto le microzone disegnate per i comuni nuovi
 
 concurrency:
   group: bot-immobili         # mai due giri insieme sullo stesso archivio
@@ -50,6 +59,7 @@ jobs:
       SCOUT_TELEGRAM_CHAT_ID: ${{ secrets.SCOUT_TELEGRAM_CHAT_ID }}
       AZIONE: ${{ github.event.inputs.azione || 'raccolta gratuita (Subito + aste PVP)' }}
       SITI_MANUALI: ${{ github.event.inputs.siti }}
+      COMUNI: ${{ github.event.inputs.comuni || 'Verona e hinterland' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -57,6 +67,27 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
+
+      - name: Microzone dei comuni nuovi (da OpenStreetMap, solo se mancano)
+        # se OpenStreetMap è lento il giro va avanti lo stesso
+        timeout-minutes: ${{ startsWith(github.event.inputs.azione || '', 'solo microzone') && 120 || 45 }}
+        continue-on-error: true
+        run: |
+          # un comune appena aggiunto in config.yaml riceve le sue microzone; quelli che le hanno già non si toccano
+          # nei giri normali al massimo 20 minuti (i comuni rimasti al giro dopo), con "solo microzone" fino a 100
+          MINUTI=20; case "$AZIONE" in "solo microzone"*) MINUTI=100 ;; esac
+          python -m scout zone-hinterland --minuti "$MINUTI" || echo "::warning::Microzone non disegnate (OpenStreetMap non risponde): si riprova al prossimo giro"
+
+      - name: Salva nel progetto le microzone disegnate
+        if: always()
+        continue-on-error: true
+        run: |
+          git add data/zone/*.geojson
+          if git diff --cached --quiet; then echo "Nessuna microzona nuova."; exit 0; fi
+          git config user.name "bot-immobili"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Microzone disegnate da OpenStreetMap per i comuni nuovi dell'hinterland"
+          for i in 1 2 3; do git pull --rebase -q origin "$GITHUB_REF_NAME" && git push origin "HEAD:$GITHUB_REF_NAME" && break; sleep 10; done
 
       - name: Controllo segreti e archivio online
         id: pronto
@@ -75,6 +106,9 @@ jobs:
               manca="Non c'è ancora l'archivio online: dal PC di casa lancia una volta CARICA_ARCHIVIO.bat."
             fi
           fi
+          case "$AZIONE" in "solo microzone"*)
+            echo "Solo microzone: nessuna raccolta e nessuna pubblicazione."; echo "ok=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+          esac
           if [ -n "$manca" ]; then
             if [ "${{ github.event_name }}" = "schedule" ]; then
               echo "::notice::Giro automatico saltato. $manca"
@@ -118,7 +152,12 @@ jobs:
               echo "::error::Per i giri con Apify serve il segreto SCOUT_APIFY_TOKEN."; exit 1
             fi ;;
           esac
-          python -m scout scrape --siti "$SITI"
+          case "$COMUNI" in
+            "solo Verona") QUALI="verona" ;;
+            "solo hinterland") QUALI="hinterland" ;;
+            *) QUALI="tutti" ;;
+          esac
+          python -m scout scrape --siti "$SITI" --comuni "$QUALI"
 
       - name: Ricalcolo e pubblicazione sul sito
         if: steps.pronto.outputs.ok == 'true'
