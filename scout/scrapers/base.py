@@ -81,6 +81,19 @@ class PoliteClient:
             return any(m in resp.text for m in BLOCK_MARKERS)
         return False
 
+    @staticmethod
+    def descrivi_blocco(resp: requests.Response) -> str:
+        """Chi blocca e come, per capire dal log se è un filtro anti-bot sugli IP (es. DataDome)."""
+        h = {k.lower(): v for k, v in (resp.headers or {}).items()}
+        parti = [f"{k}={h[k]}" for k in ("server", "x-datadome", "x-dd-b", "cf-ray", "x-cache", "via")
+                 if k in h]
+        testo = resp.text or ""
+        marker = [m for m in BLOCK_MARKERS if m in testo]
+        if marker:
+            parti.append("segni=" + ",".join(marker))
+        parti.append(f"pagina={len(testo)} caratteri")
+        return "; ".join(parti)
+
     def get(self, url: str, **kw) -> requests.Response:
         return self._richiesta("GET", url, **kw)
 
@@ -107,7 +120,8 @@ class PoliteClient:
                 continue
             if self.is_block(r):
                 self.blocchi[host] = self.blocchi.get(host, 0) + 1
-                log.warning("BLOCCO da %s (HTTP %s), n.%d", host, r.status_code, self.blocchi[host])
+                log.warning("BLOCCO da %s (HTTP %s), n.%d: %s", host, r.status_code, self.blocchi[host],
+                            self.descrivi_blocco(r))
                 if self.blocchi[host] >= self.stop_blocchi:
                     raise BloccatoError(f"{host} blocca le richieste (HTTP {r.status_code})")
                 time.sleep(self.backoff * (2 ** (i + 1)) * random.uniform(0.8, 1.2))
