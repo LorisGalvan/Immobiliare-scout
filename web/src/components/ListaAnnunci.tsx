@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { eur, FONTE, num, piano } from "../lib/format";
 import { nInserzionisti } from "../lib/doppioni";
+import { indirizzoAgenzia } from "../lib/agenzia";
 import { useData } from "../lib/store";
 import type { Annuncio } from "../lib/types";
 import { nomeUtente, NESSUNA, perAnnuncio } from "../lib/valutazioni";
@@ -65,7 +66,7 @@ function Elenco({ annunci, vuoto, mostraZona }: { annunci: Annuncio[]; vuoto: st
                 className={`cursor-pointer hover:bg-brand-50/50 ${a.attivo ? "" : "text-slate-400 line-through"}`}>
                 <td className="td"><Scostamento v={a.scostamento_pct} /></td>
                 {mostraZona && <td className="td text-slate-600">{a.microzona ?? "–"}</td>}
-                <td className="td max-w-[16rem] truncate font-medium">{a.indirizzo || a.titolo}</td>
+                <td className="td max-w-[16rem] truncate font-medium"><SedeAgenzia a={a} />{a.indirizzo || a.titolo}</td>
                 <td className="td text-right tabular-nums">{num(a.mq)}</td>
                 <td className="td text-right tabular-nums">
                   {eur(a.prezzo)}
@@ -96,7 +97,7 @@ function Elenco({ annunci, vuoto, mostraZona }: { annunci: Annuncio[]; vuoto: st
             className={`card block w-full p-3 text-left ${a.attivo ? "" : "opacity-60"}`}>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <div className="truncate font-medium">{a.indirizzo || a.titolo}</div>
+                <div className="truncate font-medium"><SedeAgenzia a={a} />{a.indirizzo || a.titolo}</div>
                 {mostraZona && <div className="truncate text-xs text-slate-500">{a.microzona}</div>}
               </div>
               <Scostamento v={a.scostamento_pct} />
@@ -124,4 +125,15 @@ function Copie({ a }: { a: Annuncio }) {
   const n = Math.max(nInserzionisti(a), 1);
   const testo = n > 1 ? `${n} inserzionisti` : `${a.doppioni.length + 1} annunci`;
   return <span className="chip mr-1 bg-sky-100 text-sky-800" title={`Stesso immobile pubblicato ${a.doppioni.length + 1} volte`}>{testo}</span>;
+}
+
+/** "📍 sede agenzia": la posizione è quella dell'ufficio, l'annuncio non conta nella microzona. */
+function SedeAgenzia({ a }: { a: Annuncio }) {
+  const motivo = indirizzoAgenzia(a);
+  if (motivo == null) return null;
+  return (
+    <span className="chip mr-1 bg-orange-100 text-orange-800" title={`Indirizzo dell'agenzia, non dell'immobile: escluso dalla valutazione della microzona. ${motivo}`}>
+      📍 sede agenzia
+    </span>
+  );
 }

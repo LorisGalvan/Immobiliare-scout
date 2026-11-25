@@ -9,7 +9,7 @@ import re
 import numpy as np
 import pandas as pd
 
-from . import doppioni
+from . import doppioni, indirizzo_agenzia
 from .cleaning import PRIORITA, _dist_m, _stessa_via, soglia_doppioni, unisci_doppioni, valida
 from .models import Listing
 from .normalize import piano_num
@@ -87,7 +87,11 @@ def prepara(storage: Storage, cfg: dict, aste: list | None = None) -> pd.DataFra
         unisci_doppioni([l for l in tenuti if l.uid not in attivi_uid], cfg)
     if not reps:      # es. tutti gli annunci sono aste
         return pd.DataFrame()
-    rep_df = pd.DataFrame([{**l.to_dict(), "flags": l.flags, "doppioni": l.doppioni} for l in reps])
+    # annunci messi all'indirizzo dell'agenzia: restano visibili ma fuori dalle mediane
+    # (si controlla su attivi e rimossi insieme: gli annunci vecchi aiutano a riconoscere l'ufficio)
+    sede = indirizzo_agenzia.controlla(reps, cfg)
+    rep_df = pd.DataFrame([{**l.to_dict(), "flags": l.flags, "doppioni": l.doppioni,
+                            "indirizzo_agenzia": l.uid in sede} for l in reps])
     meta = df.set_index("uid")[["first_seen", "last_seen", "attivo", "removed_at", "prezzo_iniziale",
                                 "n_prezzi", "pmin", "pmax"]]
     rep_df = rep_df.join(meta, on="uid")
@@ -121,7 +125,12 @@ def analizza(df: pd.DataFrame, cfg: dict, omi: "OMI | None" = None) -> tuple[pd.
     df["ribasso_pct"] = np.where(df["prezzo_iniziale"].fillna(0) > df["prezzo"],
                                  (df["prezzo"] / df["prezzo_iniziale"] - 1) * 100, 0.0)
 
-    zonate = df[df["microzona"].notna()]
+    if "indirizzo_agenzia" not in df.columns:
+        df["indirizzo_agenzia"] = False
+    df["indirizzo_agenzia"] = df["indirizzo_agenzia"].fillna(False).astype(bool)
+    # la posizione degli annunci all'indirizzo dell'agenzia non è quella dell'immobile:
+    # non entrano nelle mediane della microzona
+    zonate = df[df["microzona"].notna() & ~df["indirizzo_agenzia"]]
     g = zonate.groupby(["microzona", "fascia"])
     med = g.agg(n=("uid", "count"), mediana_mq=("prezzo_mq", "median"),
                 mediana_mq_norm=("prezzo_mq_norm", "median"), media_mq=("prezzo_mq", "mean")).reset_index()
@@ -144,6 +153,8 @@ def analizza(df: pd.DataFrame, cfg: dict, omi: "OMI | None" = None) -> tuple[pd.
     def riferimento(r):
         if pd.isna(r.get("microzona")):
             return np.nan, "senza zona"
+        if r.get("indirizzo_agenzia"):
+            return np.nan, "posizione non attendibile: indirizzo dell'agenzia"
         n = r.get("n") or 0
         if n >= min_n:
             return (r["mediana_mq_norm"] if usa_norm else r["mediana_mq"]), f"fascia (n={int(n)})"
@@ -159,6 +170,7 @@ def analizza(df: pd.DataFrame, cfg: dict, omi: "OMI | None" = None) -> tuple[pd.
     valore = df["prezzo_mq_norm"] if usa_norm else df["prezzo_mq"]
     df["scostamento_pct"] = (valore / df["riferimento_mq"] - 1) * 100
     df["scostamento_grezzo_pct"] = (df["prezzo_mq"] / df["mediana_mq"] - 1) * 100
+    df.loc[df["indirizzo_agenzia"], "scostamento_grezzo_pct"] = np.nan
 
     if omi is not None:
         df = omi.arricchisci(df)

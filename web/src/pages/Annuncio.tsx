@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { prezzi as caricaPrezzi, salvaValutazione } from "../lib/data";
 import { data as fData, dataOra, eur, FONTE, num, pct, piano, STATO } from "../lib/format";
 import { copie } from "../lib/doppioni";
+import { indirizzoAgenzia } from "../lib/agenzia";
 import { useAuth, useData } from "../lib/store";
 import type { Prezzo, StatoValutazione } from "../lib/types";
 import GraficoPrezzi from "../components/GraficoPrezzi";
@@ -38,6 +39,7 @@ export default function Annuncio() {
   if (!dataset) return null;
   if (!a) return <Vuoto>Annuncio non trovato (forse rimosso da tempo).</Vuoto>;
 
+  const sedeAgenzia = indirizzoAgenzia(a);
   const salva = async () => {
     if (!utente) return;
     await salvaValutazione({ uid, stato, nota: nota || null }, utente.id, utente.email);
@@ -59,6 +61,13 @@ export default function Annuncio() {
         </div>
         <a href={a.url} target="_blank" rel="noreferrer" className="btn-primary"><Icona d={ICONE.link} className="h-4 w-4" />Apri su {FONTE[a.source] ?? a.source}</a>
       </div>
+      {sedeAgenzia != null && (
+        <div className="mb-4 rounded-xl border-2 border-orange-300 bg-orange-50 p-3 text-sm text-orange-900">
+          <b>📍 Indirizzo dell'agenzia, non dell'immobile</b>: la posizione sulla mappa è quella dell'ufficio, quindi
+          l'annuncio è escluso dalla valutazione della microzona (niente mediana, scostamento né occasione).
+          {sedeAgenzia && <> Motivo: {sedeAgenzia}.</>} Chiedi all'agenzia dove si trova davvero.
+        </div>
+      )}
       {(a.tipo_vendita === "asta" || a.tipo_vendita === "possibile_asta") && (
         <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">
           <b>{a.tipo_vendita === "asta" ? "Asta giudiziaria" : "Possibile asta, da verificare"}</b>: esclusa dalla valutazione del territorio.

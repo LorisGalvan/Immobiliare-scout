@@ -211,6 +211,16 @@ Sul sito resta una scheda sola (col prezzo più basso) con l'elenco di agenzie, 
 in lista compare l'etichetta "3 inserzionisti". Se unisce troppo o troppo poco, in `config.yaml`
 sotto `pulizia: doppioni:` si può mettere `soglia_punti: 6` (più severo) o `4` (più largo); di
 serie è 5.
+
+**Annunci all'indirizzo dell'agenzia.** Molte agenzie scrivono l'indirizzo del proprio ufficio
+invece di quello dell'immobile, e sulla mappa l'annuncio finisce nella microzona sbagliata. Il bot
+li riconosce in tre modi: la sede scritta nel testo ("ci trovi in via Roma 10") coincide con
+l'indirizzo dell'annuncio; almeno 3 immobili diversi della stessa agenzia nello stesso punto della
+mappa (non vale per i cantieri di nuova costruzione e per i punti dove pubblicano anche altri);
+la sede che hai scritto tu in `config.yaml` sotto `controllo_agenzia: sedi:`. Questi annunci restano
+sul sito con l'etichetta arancione "📍 sede agenzia" (e un elenco in Panoramica), ma **non entrano
+nelle mediane** della microzona e non possono risultare occasioni né frazionabili. Se il bot
+sbaglia su un annuncio, mettine l'uid sotto `controllo_agenzia: ignora:`.
 Limiti e opzioni (facoltativi) nella sezione `portali_apify:` di config.yaml, es. `portali_apify: {idealista: {max_annunci: 500}}`.
 
 ### 4.2 Semi-manuale (se un sito blocca, e per Idealista)
