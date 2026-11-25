@@ -157,7 +157,11 @@ jobs:
             "solo hinterland") QUALI="hinterland" ;;
             *) QUALI="tutti" ;;
           esac
-          python -m scout scrape --siti "$SITI" --comuni "$QUALI"
+          set -o pipefail
+          python -m scout scrape --siti "$SITI" --comuni "$QUALI" 2>&1 | tee raccolta.log
+          if grep -q "Subito: .*blocca le richieste" raccolta.log; then
+            echo "::warning::Subito ha rifiutato il bot (HTTP 403 della rete Akamai sui computer di GitHub): oggi nessun annuncio nuovo da Subito."
+          fi
 
       - name: Ricalcolo e pubblicazione sul sito
         if: steps.pronto.outputs.ok == 'true'
