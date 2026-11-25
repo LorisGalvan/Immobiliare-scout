@@ -166,6 +166,24 @@ pulizia:
     tolleranza_prezzo_pct: 3
     distanza_max_m: 150
 
+# Annunci messi all'indirizzo dell'AGENZIA invece che a quello dell'immobile: restano sul sito
+# con la segnalazione "indirizzo dell'agenzia", ma non entrano nelle mediane della microzona
+# (le falserebbero). Il bot li riconosce da solo (sede scritta nel testo dell'annuncio, oppure
+# tanti immobili diversi della stessa agenzia nello stesso punto della mappa). Le sedi che
+# conosci puoi scriverle sotto "sedi": basta il nome dell'agenzia e l'indirizzo (via e civico),
+# oppure lat/lon presi da Google Maps (tasto destro sul punto).
+controllo_agenzia:
+  attivo: true
+  raggio_m: 30             # "stesso punto": entro questa distanza
+  min_immobili: 3          # immobili diversi della stessa agenzia nello stesso punto per dire "è l'ufficio"
+  sedi: []
+  #  - agenzia: Tecnocasa Borgo Roma
+  #    indirizzo: Via Centro 10
+  #  - agenzia: Immobiliare Esempio
+  #    lat: 45.4384
+  #    lon: 10.9916
+  ignora: []               # uid da non segnalare mai (es. "immobiliare:123456"), se il bot sbaglia
+
 # ---------------------------------------------------------------------
 #  ANALISI
 # ---------------------------------------------------------------------

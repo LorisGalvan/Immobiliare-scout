@@ -46,6 +46,8 @@ def analizza_frazionamento(df: pd.DataFrame, med: pd.DataFrame, cfg: dict) -> pd
 
     piccole = med[med["fascia"] == fascia_rif].set_index("microzona")
     cand = df[(df["mq"] >= mq_min) & (df["attivo"] == 1) & df["microzona"].notna()].copy()
+    if "indirizzo_agenzia" in cand.columns:     # posizione falsa: la microzona non è quella vera
+        cand = cand[~cand["indirizzo_agenzia"].fillna(False).astype(bool)]
     righe = []
     for _, r in cand.iterrows():
         if r["microzona"] not in piccole.index:

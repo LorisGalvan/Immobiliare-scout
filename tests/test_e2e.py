@@ -177,3 +177,31 @@ def test_zone_nuove_valgono_per_gli_annunci_in_archivio(tmp_path):
     assert st.conn.execute("SELECT microzona FROM annunci").fetchone()[0] in (None, z0.nome)
     assert riassegna_zone(st, tutte, cfg) == 0
     assert st.conn.execute("SELECT microzona FROM annunci").fetchone()[0] == z0.nome
+
+
+def test_annunci_all_indirizzo_dell_agenzia_fuori_dalle_mediane(tmp_path):
+    """Un'agenzia mette 4 immobili (in realtà altrove, molto più cari) all'indirizzo del suo ufficio:
+    sul sito restano, segnalati, ma la mediana della microzona non cambia."""
+    cfg = _cfg(tmp_path)
+    zone = MicrozoneSet.load(cfg["microzone"]["file"])
+    rnd = random.Random(7)
+    ann = _annunci(zone, rnd)
+    st = Storage(cfg["database"])
+    ingest(cfg, st, ann, zone, "immobiliare", True)
+    prima = analizza_e_esporta(cfg, st, zone, alert=False)["med"]
+
+    z0 = zone.zone[0]
+    lat, lon = _punto_in(z0, rnd)
+    ufficio = [Listing(source="immobiliare", source_id=f"UFF{i}", url=f"https://example/uff{i}", mq=mq,
+                       prezzo=mq * 9000, lat=lat, lon=lon, piano="1", stato="buono", agenzia="Agenzia Ufficio")
+               for i, mq in enumerate([60, 85, 110, 140])]
+    ingest(cfg, st, ann + ufficio, zone, "immobiliare", True)
+    r = analizza_e_esporta(cfg, st, zone, alert=False)
+    df = r["df"].set_index("uid")
+    for l in ufficio:
+        assert df.loc[l.uid, "indirizzo_agenzia"]
+        assert any(f.startswith("indirizzo dell'agenzia") for f in df.loc[l.uid, "flags"])
+    m0 = prima[prima["microzona"] == z0.nome].set_index("fascia")["mediana_mq"]
+    m1 = r["med"][r["med"]["microzona"] == z0.nome].set_index("fascia")["mediana_mq"]
+    assert m0.round(2).to_dict() == m1.round(2).to_dict()
+    assert int(df["indirizzo_agenzia"].sum()) == len(ufficio)

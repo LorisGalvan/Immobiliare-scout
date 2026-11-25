@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { indirizzoAgenzia } from "../lib/agenzia";
 import { eur, num, pct } from "../lib/format";
 import type { Annuncio, Zona } from "../lib/types";
 
@@ -63,12 +64,16 @@ export default function Mappa({ zone, valoreZona, annunci = [], evidenziati, zon
     for (const a of annunci) {
       if (a.lat == null || a.lon == null) continue;
       const ev = evidenziati?.has(a.uid);
-      const mk = L.circleMarker([a.lat, a.lon], {
+      const sede = indirizzoAgenzia(a) != null;   // posizione dell'ufficio: punto arancione vuoto
+      const mk = L.circleMarker([a.lat, a.lon], sede ? {
+        radius: 6, color: "#ea580c", weight: 2, fillColor: "#ffffff", fillOpacity: 0.9, dashArray: "2 2",
+      } : {
         radius: ev ? 7 : 4, color: ev ? "#be123c" : "#475569", weight: ev ? 2 : 1,
         fillColor: ev ? "#f43f5e" : "#94a3b8", fillOpacity: ev ? 0.9 : 0.7,
       });
       mk.bindPopup(
         `<div style="min-width:180px"><b>${esc(a.indirizzo || a.titolo || "")}</b><br>` +
+        (sede ? `<span style="color:#c2410c"><b>📍 Indirizzo dell'agenzia</b>: fuori dalla valutazione</span><br>` : "") +
         `${num(a.mq)} mq · ${eur(a.prezzo)}<br>${num(a.prezzo_mq)} €/mq · <b>${pct(a.scostamento_pct)}</b><br>` +
         `<a href="#/annuncio/${encodeURIComponent(a.uid)}">Apri scheda →</a></div>`,
       );

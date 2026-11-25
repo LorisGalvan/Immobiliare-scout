@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { indirizzoAgenzia } from "../lib/agenzia";
 import { urlReport } from "../lib/data";
 import { dataOra, eur, num, pct } from "../lib/format";
 import { useData } from "../lib/store";
@@ -25,7 +26,8 @@ export default function Panoramica() {
     const scartati = new Set([...perAnnuncio(valutazioni)].filter(([, t]) => t.gruppo === "scartati").map(([uid]) => uid));
     const fraz = [...dataset.frazionabili].sort((a, b) => b.margine_pct - a.margine_pct);
     const frazAperti = fraz.filter((f) => !scartati.has(f.uid));
-    return { attivi, occ, nuoviSett, ribassi, med: ppm[Math.floor(ppm.length / 2)], fraz, frazAperti, team: perAnnuncio(valutazioni) };
+    const sedeAgenzia = attivi.filter((a) => indirizzoAgenzia(a) != null);
+    return { sedeAgenzia, attivi, occ, nuoviSett, ribassi, med: ppm[Math.floor(ppm.length / 2)], fraz, frazAperti, team: perAnnuncio(valutazioni) };
   }, [dataset, soglia, valutazioni]);
 
   if (!dataset || !s) return null;
@@ -54,6 +56,17 @@ export default function Panoramica() {
         </div>
         <ListaAnnunci annunci={s.occ.slice(0, 8)} vuoto="Nessuna occasione sotto la soglia." />
       </section>
+
+      {s.sedeAgenzia.length > 0 && (
+        <section className="mt-6">
+          <h2 className="mb-1 font-semibold text-orange-800">📍 Da controllare: indirizzo dell'agenzia ({s.sedeAgenzia.length})</h2>
+          <p className="mb-2 text-sm text-slate-500">
+            Annunci messi sulla mappa all'indirizzo dell'agenzia invece che a quello dell'immobile. Sono esclusi dalle
+            mediane delle microzone, così non falsano la valutazione.
+          </p>
+          <ListaAnnunci annunci={s.sedeAgenzia} filtroInserzionista={false} />
+        </section>
+      )}
 
       {s.frazAperti.length > 0 && (
         <section className="mt-6">
