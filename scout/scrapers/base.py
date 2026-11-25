@@ -82,6 +82,13 @@ class PoliteClient:
         return False
 
     @staticmethod
+    def blocco_ip(resp: requests.Response) -> bool:
+        """Rifiuto netto della rete del sito (Akamai "Access Denied"): dipende dall'indirizzo del
+        computer, non dal ritmo, quindi riprovare non serve e si smette subito."""
+        server = (resp.headers or {}).get("Server", "") or ""
+        return resp.status_code == 403 and "akamai" in server.lower() and "Access Denied" in (resp.text or "")
+
+    @staticmethod
     def descrivi_blocco(resp: requests.Response) -> str:
         """Chi blocca e come, per capire dal log se è un filtro anti-bot sugli IP (es. DataDome)."""
         h = {k.lower(): v for k, v in (resp.headers or {}).items()}
@@ -122,7 +129,8 @@ class PoliteClient:
                 self.blocchi[host] = self.blocchi.get(host, 0) + 1
                 log.warning("BLOCCO da %s (HTTP %s), n.%d: %s", host, r.status_code, self.blocchi[host],
                             self.descrivi_blocco(r))
-                if self.blocchi[host] >= self.stop_blocchi:
+                if self.blocchi[host] >= self.stop_blocchi or self.blocco_ip(r):
+                    # un rifiuto della rete Akamai per l'indirizzo del computer non cambia riprovando
                     raise BloccatoError(f"{host} blocca le richieste (HTTP {r.status_code})")
                 time.sleep(self.backoff * (2 ** (i + 1)) * random.uniform(0.8, 1.2))
                 continue
