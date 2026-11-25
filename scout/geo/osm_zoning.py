@@ -287,7 +287,9 @@ def disegna_hinterland(cfg: dict, livello: str = "medio", area_min_m2: float = 1
         log.info("microzone di %s: chiedo a OpenStreetMap confine, strade, ferrovie e fiumi...", c["nome"])
         try:
             confine = fetch_comune_boundary(c.get("nome_osm", c["nome"]), ua, RIQUADRO_VR)
-            tutte = proponi_microzone(c["nome"], ua, livello, area_min_m2, territorio=confine,
+            # un comune può avere livello e area minima propri (es. zone piccole come quelle disegnate a mano)
+            tutte = proponi_microzone(c["nome"], ua, c.get("livello", livello),
+                                      float(c.get("area_min", area_min_m2)), territorio=confine,
                                       esistenti=mie if len(mie) else None)
         except Exception as e:  # noqa: BLE001 - un comune che non riesce non ferma gli altri
             righe.append(f"{c['nome']}: microzone non disegnate ({e}); si riprova al prossimo giro")

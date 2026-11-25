@@ -30,7 +30,11 @@ microzone:
 hinterland:
   attivo: true
   comuni:
-    - San Giovanni Lupatoto
+    # San Giovanni Lupatoto: le 4 zone del centro sono quelle della tua mappatura (Excel); il resto del comune
+    # è diviso con le stesse dimensioni (0,3-0,6 km²) usando anche le strade di quartiere
+    - nome: San Giovanni Lupatoto
+      livello: fine
+      area_min: 300000
     - San Martino Buon Albergo
     - Villafranca di Verona
     - Bussolengo
