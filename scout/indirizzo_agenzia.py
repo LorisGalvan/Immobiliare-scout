@@ -32,6 +32,10 @@ FLAG = "indirizzo dell'agenzia"
 _PAROLE_VUOTE = {"immobiliare", "immobiliari", "agenzia", "agenzie", "srl", "srls", "snc", "sas", "spa",
                  "di", "de", "del", "della", "the", "group", "gruppo", "studio", "real", "estate", "case", "casa"}
 
+# costruttori e imprese edili vendono gli appartamenti del proprio cantiere: tanti immobili nello
+# stesso punto sono normali
+_COSTRUTTORE = re.compile(r"costruzion|costruttor|\bedil|impresa|cantier|immobiliare\s+costruttrice", re.I)
+
 _NUOVO = re.compile(r"nuova\s+costruzione|in\s+costruzione|nuova\s+realizzazione|cantiere|nuovo\s+complesso"
                     r"|complesso\s+residenziale|nuova\s+palazzina|consegna\s+prevista|prezzi\s+da\s+capitolato", re.I)
 
@@ -130,14 +134,15 @@ def controlla(listings: list[Listing], cfg: dict) -> dict[str, str]:
         if l.lat is not None and l.lon is not None and l.coord_precise and nomi[id(l)]:
             per_agenzia[nomi[id(l)]].append(l)
     for nome, gruppo in per_agenzia.items():
-        if len(gruppo) < min_imm:
+        if len(gruppo) < min_imm or any(_COSTRUTTORE.search(x.agenzia or "") for x in gruppo):
             continue
         for l in gruppo:
             vicini = [x for x in gruppo if distanza_m(l, x) <= raggio]
             n = _diversi(vicini)
             if n < min_imm:
                 continue
-            nuovi = sum(1 for x in vicini if x.stato == "nuovo" or _NUOVO.search(f"{x.titolo} {x.descrizione}"))
+            nuovi = sum(1 for x in vicini if x.stato == "nuovo" or "nuova-costruzione" in (x.url or "")
+                        or _NUOVO.search(f"{x.titolo} {x.descrizione} {x.tipologia or ''}"))
             if nuovi * 2 >= len(vicini):
                 continue        # cantiere: tanti appartamenti nuovi nello stesso stabile
             dentro = {id(x) for x in vicini}
@@ -154,6 +159,13 @@ def controlla(listings: list[Listing], cfg: dict) -> dict[str, str]:
             _segna(l, trovati[l.uid])
     if trovati:
         log.warning("annunci all'indirizzo dell'agenzia (fuori dalle mediane): %d", len(trovati))
+        gruppi: dict[tuple, list[Listing]] = defaultdict(list)
+        for l in listings:
+            if l.uid in trovati:
+                gruppi[(l.agenzia or "?", l.microzona or "senza zona", trovati[l.uid].split(" (")[0])].append(l)
+        for (ag, zona, motivo), g in sorted(gruppi.items()):
+            log.info("  sede agenzia | %s | %s | %d annunci | %s | es. %s | %s", ag, zona, len(g), motivo,
+                     g[0].indirizzo or "-", " ".join(x.url for x in g[:3]))
     return trovati
 
 

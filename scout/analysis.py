@@ -98,6 +98,21 @@ def prepara(storage: Storage, cfg: dict, aste: list | None = None) -> pd.DataFra
     return rep_df
 
 
+def _log_effetto_sede_agenzia(df: pd.DataFrame) -> None:
+    """Nel log: di quanto cambia la mediana €/mq delle microzone togliendo gli annunci
+    all'indirizzo dell'agenzia (per controllare che il controllo faccia cose sensate)."""
+    sede = df[df["indirizzo_agenzia"] & df["microzona"].notna()]
+    if sede.empty:
+        return
+    tutte = df[df["microzona"].notna()]
+    for zona in sorted(sede["microzona"].unique()):
+        con = tutte[tutte["microzona"] == zona]["prezzo_mq"]
+        senza = con[~tutte.loc[con.index, "indirizzo_agenzia"]]
+        m_con, m_senza = con.median(), senza.median() if len(senza) else float("nan")
+        log.info("  mediana %s: %.0f €/mq con gli annunci sede agenzia (n=%d), %.0f senza (n=%d)",
+                 zona, m_con, len(con), m_senza, len(senza))
+
+
 def analizza(df: pd.DataFrame, cfg: dict, omi: "OMI | None" = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Restituisce (annunci con scostamenti, tabella mediane per zona/fascia)."""
     a = cfg.get("analisi", {})
@@ -131,6 +146,7 @@ def analizza(df: pd.DataFrame, cfg: dict, omi: "OMI | None" = None) -> tuple[pd.
     # la posizione degli annunci all'indirizzo dell'agenzia non è quella dell'immobile:
     # non entrano nelle mediane della microzona
     zonate = df[df["microzona"].notna() & ~df["indirizzo_agenzia"]]
+    _log_effetto_sede_agenzia(df)
     g = zonate.groupby(["microzona", "fascia"])
     med = g.agg(n=("uid", "count"), mediana_mq=("prezzo_mq", "median"),
                 mediana_mq_norm=("prezzo_mq_norm", "median"), media_mq=("prezzo_mq", "mean")).reset_index()
