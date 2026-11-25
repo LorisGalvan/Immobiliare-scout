@@ -154,6 +154,12 @@ def controlla(listings: list[Listing], cfg: dict) -> dict[str, str]:
             _segna(l, trovati[l.uid])
     if trovati:
         log.warning("annunci all'indirizzo dell'agenzia (fuori dalle mediane): %d", len(trovati))
+        per_uid = {l.uid: l for l in listings}
+        for uid, motivo in sorted(trovati.items(), key=lambda t: (per_uid[t[0]].agenzia or "", t[0]))[:40]:
+            l = per_uid[uid]
+            log.info("  sede agenzia | %s | %s | %s | %s mq %s € | %s | %s", l.agenzia, l.comune or "",
+                     l.indirizzo or "-", f"{l.mq:g}" if l.mq else "?", f"{l.prezzo:,.0f}" if l.prezzo else "?",
+                     motivo, l.url)
     return trovati
 
 
