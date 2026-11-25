@@ -1099,7 +1099,8 @@
     "fonte": "osm_auto",
     "area_m2": 3324725,
     "comune": "San Giovanni Lupatoto",
-    "nome": "S. Giovanni Lupatoto m6"
+    "nome": "5SGL",
+    "nota": "zona 5 della mappatura di Loris (foglio senza mappa): confine automatico da OSM, da rifinire"
    },
    "geometry": {
     "type": "Polygon",
