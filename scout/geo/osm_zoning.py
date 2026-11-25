@@ -263,4 +263,54 @@ def proponi_microzone(comune: str, user_agent: str, livello: str = "medio",
     return MicrozoneSet(zone)
 
 
-__all__ = ["proponi_microzone", "build_zones", "fetch_comune_boundary", "Point"]
+def disegna_hinterland(cfg: dict, livello: str = "medio", area_min_m2: float = 150_000,
+                       rifai: bool = False, minuti: float = 20) -> list[str]:
+    """Per ogni comune dell'hinterland senza zone automatiche: confine comunale da OSM, tagliato da
+    strade principali, ferrovie e fiumi (come per Verona). Le zone disegnate a mano restano:
+    le nuove coprono solo il resto del comune. Restituisce un riepilogo riga per riga."""
+    from ..config import get, resolve
+    from ..territori import RIQUADRO_VR, comuni_hinterland, file_zone, nome_breve
+    ua = get(cfg, "scraping.user_agent")
+    righe = []
+    fine = time.time() + float(minuti) * 60
+    for c in comuni_hinterland(cfg):
+        if time.time() > fine:
+            righe.append("tempo per le microzone finito: i comuni rimasti si fanno al prossimo giro")
+            break
+        path = resolve(cfg, file_zone(c))
+        zs = MicrozoneSet.load(path)
+        auto = [z for z in zs.zone if z.props.get("fonte") == "osm_auto"]
+        if auto and not rifai:
+            righe.append(f"{c['nome']}: {len(zs)} microzone già presenti")
+            continue
+        mie = MicrozoneSet([z for z in zs.zone if z.props.get("fonte") != "osm_auto"])
+        log.info("microzone di %s: chiedo a OpenStreetMap confine, strade, ferrovie e fiumi...", c["nome"])
+        try:
+            confine = fetch_comune_boundary(c.get("nome_osm", c["nome"]), ua, RIQUADRO_VR)
+            # un comune può avere livello e area minima propri (es. zone piccole come quelle disegnate a mano)
+            tutte = proponi_microzone(c["nome"], ua, c.get("livello", livello),
+                                      float(c.get("area_min", area_min_m2)), territorio=confine,
+                                      esistenti=mie if len(mie) else None)
+        except Exception as e:  # noqa: BLE001 - un comune che non riesce non ferma gli altri
+            righe.append(f"{c['nome']}: microzone non disegnate ({e}); si riprova al prossimo giro")
+            if "non raggiungibile" in str(e):
+                righe.append("OpenStreetMap non risponde: gli altri comuni si fanno al prossimo giro")
+                break                    # inutile aspettare i timeout per ogni comune
+            continue
+        breve, nomi = nome_breve(c), set(mie.names())
+        for z in tutte.zone[len(mie):]:
+            resto = z.nome.removeprefix("Auto ").strip()
+            z.nome = f"{breve} {resto}"
+            while z.nome in nomi:
+                z.nome += "b"
+            nomi.add(z.nome)
+            z.props["comune"] = c["nome"]
+        tutte.save(path)
+        log.info("%s: %d microzone salvate", c["nome"], len(tutte))
+        righe.append(f"{c['nome']}: {len(tutte) - len(mie)} microzone nuove"
+                     + (f" (più le tue {len(mie)})" if len(mie) else "") + f" -> {path.name}")
+        time.sleep(5)                    # gentilezza verso i server Overpass tra un comune e l'altro
+    return righe
+
+
+__all__ = ["disegna_hinterland", "proponi_microzone", "build_zones", "fetch_comune_boundary", "Point"]

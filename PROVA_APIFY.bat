@@ -9,7 +9,7 @@ if not exist ".venv\Scripts\python.exe" (
   exit /b 1
 )
 echo  ===== Prova Immobiliare tramite Apify (apify.max_annunci in config, di solito 200) =====
-".venv\Scripts\python.exe" -m scout scrape --siti immobiliare_apify || goto errore
+".venv\Scripts\python.exe" -m scout scrape --siti immobiliare_apify --comuni verona || goto errore
 echo.
 echo  ===== Analisi, Excel, mappa e pubblicazione sul sito =====
 ".venv\Scripts\python.exe" -m scout analizza || goto errore

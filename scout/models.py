@@ -28,6 +28,7 @@ class Listing:
     lon: Optional[float] = None
     coord_precise: bool = True      # False se da geocoding approssimativo
     tipologia: Optional[str] = None
+    comune: Optional[str] = None    # comune della ricerca (vuoto nei dati vecchi = comune principale)
     prezzo_ribassato_da: Optional[float] = None
     # campi calcolati
     microzona: Optional[str] = None

@@ -25,11 +25,11 @@ CREATE TABLE IF NOT EXISTS esecuzioni (id INTEGER PRIMARY KEY AUTOINCREMENT, ts 
 CREATE INDEX IF NOT EXISTS ix_annunci_zona ON annunci(microzona);
 """
 # colonne aggiunte dopo la prima versione: create al volo nei database esistenti
-COLONNE_NUOVE = {"tipo_vendita": "TEXT", "indizi_vendita": "TEXT"}
+COLONNE_NUOVE = {"tipo_vendita": "TEXT", "indizi_vendita": "TEXT", "comune": "TEXT"}
 
 CAMPI = ["source", "source_id", "url", "titolo", "descrizione", "prezzo", "mq", "piano", "ascensore",
          "bagni", "locali", "stato", "stato_raw", "agenzia", "privato", "data_pubblicazione",
-         "indirizzo", "lat", "lon", "coord_precise", "tipologia", "prezzo_ribassato_da", "microzona"]
+         "indirizzo", "lat", "lon", "coord_precise", "tipologia", "prezzo_ribassato_da", "microzona", "comune"]
 
 
 def oggi() -> str:
@@ -82,10 +82,15 @@ class Storage:
         self.conn.commit()
         return stats
 
-    def segna_rimossi(self, source: str, visti: set[str], giorno: str | None = None) -> list[str]:
-        """Da chiamare solo se lo scraping della fonte è stato completo."""
+    def segna_rimossi(self, source: str, visti: set[str], giorno: str | None = None,
+                      comune: str | None = None, principale: str | None = None) -> list[str]:
+        """Da chiamare solo se lo scraping della fonte è stato completo.
+        Con ``comune`` tocca solo gli annunci di quel comune (quelli senza comune contano come ``principale``)."""
         giorno = giorno or oggi()
-        rows = self.conn.execute("SELECT uid FROM annunci WHERE source=? AND attivo=1", (source,)).fetchall()
+        rows = self.conn.execute("SELECT uid, comune FROM annunci WHERE source=? AND attivo=1", (source,)).fetchall()
+        if comune:
+            from .territori import norm
+            rows = [r for r in rows if norm(r["comune"] or principale or comune) == norm(comune)]
         rimossi = [r["uid"] for r in rows if r["uid"] not in visti]
         self.conn.executemany("UPDATE annunci SET attivo=0, removed_at=? WHERE uid=?",
                               [(giorno, u) for u in rimossi])

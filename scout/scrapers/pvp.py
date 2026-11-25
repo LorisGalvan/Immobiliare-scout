@@ -143,8 +143,22 @@ def _listing(*, sid: str, url: str, titolo: str, testo: str, indirizzo: str | No
                    privato=False, flags=flags)
 
 
-def lotti_da_json(data, comune: str | None = None) -> list[Listing]:
-    """Trova nel JSON del PVP gli oggetti che sono lotti (hanno un prezzo base) e li converte."""
+def comune_del_lotto(citta, testo: str, comuni: list[str]) -> str | None:
+    """Quale dei comuni cercati è quello del lotto. Con il campo città basta il nome esatto
+    ("Villafranca di Verona" non è Verona); senza, si guarda il testo (vince il nome più lungo)."""
+    from ..territori import norm
+    if citta:
+        c = norm(citta)
+        return next((x for x in comuni if norm(x) == c), None)
+    t = f" {norm(testo)} "
+    dentro = [x for x in comuni if f" {norm(x)} " in t]
+    return max(dentro, key=len) if dentro else None
+
+
+def lotti_da_json(data, comune: str | list[str] | None = None) -> list[Listing]:
+    """Trova nel JSON del PVP gli oggetti che sono lotti (hanno un prezzo base) e li converte.
+    Con ``comune`` (uno o più nomi) tiene solo i lotti di quei comuni e scrive il comune nel lotto."""
+    comuni = [comune] if isinstance(comune, str) else list(comune or [])
     cand = _walk(data, lambda o: any(re.search(_K_BASE, k, re.I) for k in o))
     out = []
     for o in cand:
@@ -159,12 +173,13 @@ def lotti_da_json(data, comune: str | None = None) -> list[Listing]:
             url = BASE + "/" + url.lstrip("/")
         com = _find(f, r"^comune$|citt[aà]|^city$|descComune")
         testo = " ".join(str(v) for v in f.values() if isinstance(v, str) and len(v) > 25)
-        if comune and comune.lower() not in (str(com) if com else testo).lower():
+        del_comune = comune_del_lotto(com, testo, comuni) if comuni else None
+        if comuni and not del_comune:
             continue                     # senza città nel lotto si guarda la descrizione
         tipo = _find(f, r"tipologia|categoria|descTipo|tipo.?bene")
         titolo = " ".join(str(x) for x in (tipo, _find(f, r"descrizione.?breve|titolo|descLotto")) if x) or "Lotto in asta"
         lat, lon = _num(_find(f, r"^lat(?:itudine)?$")), _num(_find(f, r"^(?:lon|lng|longitudine)$"))
-        out.append(_listing(
+        lotto = _listing(
             sid=str(idv), url=url, titolo=titolo, testo=testo,
             indirizzo=str(_find(f, r"^indirizzo|^via$|address") or "") or None, comune=str(com) if com else None,
             base=base, minima=_num(_find(f, _K_MIN)), data_asta=_data(_find(f, _K_DATA)),
@@ -172,7 +187,9 @@ def lotti_da_json(data, comune: str | None = None) -> list[Listing]:
             lat=lat if lat and 30 < lat < 50 else None, lon=lon if lon and 5 < lon < 20 else None,
             tribunale=str(_find(f, r"tribunale|ufficio.?giudiziario") or "") or None,
             procedura=_procedura(f), tipo=str(tipo) if tipo else None,
-        ))
+        )
+        lotto.comune = del_comune
+        out.append(lotto)
     return out
 
 
@@ -297,19 +314,14 @@ def _ultima_pagina(data, n_lotti: int, per_pagina: int) -> bool:
     return n_lotti < per_pagina
 
 
-def _nel_comune(l: Listing, comune: str | None) -> bool:
-    if not comune:
-        return True
-    return comune.lower() in f"{l.titolo} {l.descrizione} {l.indirizzo or ''}".lower()
-
-
-def scrape(cfg: dict, client: PoliteClient) -> list[Listing]:
+def scrape(cfg: dict, client: PoliteClient, comuni: list[str] | None = None) -> list[Listing]:
+    """Lotti del tribunale, tenuti solo se di uno dei ``comuni`` (default: il comune del territorio)."""
     p = cfg.get("aste_pvp", {})
     api = p.get("api_url")
     if not api:
         log.warning("PVP: manca aste_pvp.api_url in config; salva la ricerca dal browser in pagine_salvate/")
         return []
-    comune = cfg.get("territorio", {}).get("comune")
+    comuni = comuni or [cfg.get("territorio", {}).get("comune")]
     per_pagina = int(p.get("per_pagina", 50))
     # le aste già passate da più di N giorni non servono; si parte dalle più lontane nel futuro
     limite = dt.date.today() - dt.timedelta(days=int(p.get("giorni_passati", 60)))
@@ -332,14 +344,17 @@ def scrape(cfg: dict, client: PoliteClient) -> list[Listing]:
         grezzi = lotti_da_json(data)                       # tutti i lotti della risposta
         vecchi = [l for l in grezzi if (d := data_asta(l)) and d < limite]
         # comune letto dal campo città del lotto (nel testo c'è anche "Tribunale di Verona", che non basta)
-        del_comune = {l.source_id for l in lotti_da_json(data, comune)}
-        lotti = [l for l in grezzi if l.source_id in del_comune and _nel_comune(l, comune) and l not in vecchi]
+        del_comune = {l.source_id: l.comune for l in lotti_da_json(data, comuni)}
+        lotti = [l for l in grezzi if l.source_id in del_comune and l not in vecchi]
+        for l in lotti:
+            l.comune = del_comune[l.source_id]
         nuovi = [l for l in lotti if l.source_id not in tutti]
         for l in nuovi:
             tutti[l.source_id] = l
         totale = _totale(data)
-        log.info("PVP pagina %d: %d lotti nella risposta%s, %d nel comune di %s",
-                 pagina + 1, len(grezzi), f" (su {totale} totali)" if totale else "", len(nuovi), comune)
+        log.info("PVP pagina %d: %d lotti nella risposta%s, %d nei comuni: %s",
+                 pagina + 1, len(grezzi), f" (su {totale} totali)" if totale else "", len(nuovi),
+                 ", ".join(comuni) if len(comuni) <= 3 else f"{len(comuni)} comuni cercati")
         altri = [l for l in grezzi if l.agenzia and tribunale(cfg).lower() not in l.agenzia.lower()]
         if grezzi and len(altri) > len(grezzi) / 2:
             log.warning("PVP: la maggior parte dei lotti ricevuti non è del %s: il servizio sembra ignorare il "

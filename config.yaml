@@ -20,6 +20,39 @@ microzone:
   # dal poligono più vicino, viene assegnato a quello (utile per annunci sul confine).
   tolleranza_confine_m: 60
 
+# ---------------------------------------------------------------------
+#  HINTERLAND: altri comuni nello stesso archivio e sullo stesso sito
+# ---------------------------------------------------------------------
+# Per aggiungere un comune basta una riga con il nome ufficiale. Il bot ricava da solo gli indirizzi
+# dei portali (es. castel-d-azzano) e il file delle microzone (data/zone/castel_d_azzano.geojson);
+# le microzone mancanti le disegna GitHub da OpenStreetMap (strade principali, ferrovie, fiumi).
+# Per toglierne uno basta cancellare la riga (gli annunci già raccolti restano nell'archivio).
+hinterland:
+  attivo: true
+  comuni:
+    # San Giovanni Lupatoto: le 4 zone del centro sono quelle della tua mappatura (Excel); il resto del comune
+    # è diviso con le stesse dimensioni (0,3-0,6 km²) usando anche le strade di quartiere
+    - nome: San Giovanni Lupatoto
+      livello: fine
+      area_min: 300000
+    - San Martino Buon Albergo
+    - Villafranca di Verona
+    - Bussolengo
+    - Sona
+    - Sommacampagna
+    - Pescantina
+    - Negrar di Valpolicella
+    - Castel d'Azzano
+    - Grezzana
+    - Lavagno
+    - Buttapietra
+  # limiti per ogni comune (molto più piccoli di Verona): tengono basso il costo dei giri Apify
+  max_annunci: 1000       # Immobiliare, Idealista, Casa.it: se un comune li raggiunge, il log lo dice
+  max_aste: 100
+  fasce_prezzo: []        # una ricerca unica per comune (Verona invece è spezzata in fasce)
+  wikicasa_pagine: 0      # 0 = Wikicasa solo per Verona (a Verona tutti annunci di agenzie, ed è il più caro)
+  apify_in_parallelo: 3   # comuni letti contemporaneamente su Apify (il giro finisce prima, il costo è lo stesso)
+
 database: data/scout.sqlite
 cartella_output: output
 
