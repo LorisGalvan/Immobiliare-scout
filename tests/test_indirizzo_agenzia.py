@@ -96,3 +96,12 @@ def test_fuori_dalle_mediane():
     assert med.iloc[0]["n"] == 3 and med.iloc[0]["mediana_mq"] == 2100
     r = out.set_index("uid").loc["x:agenzia"]
     assert pd.isna(r["scostamento_pct"]) and not r["occasione"] and "agenzia" in r["base_confronto"]
+
+
+def test_costruttori_e_nuove_costruzioni_non_segnalati():
+    ls = [L(str(i), 250000 + i * 30000, 60 + i * 15, agenzia="Costruzioni Rossi srl", lat=UFFICIO[0], lon=UFFICIO[1])
+          for i in range(4)]
+    ls += [Listing(source="idealista", source_id=f"n{i}", url=f"https://www.idealista.it/nuova-costruzione/{i}/",
+                   prezzo=300000 + i * 20000, mq=80 + i * 10, agenzia="Agenzia Bella", lat=45.45, lon=10.97)
+           for i in range(4)]
+    assert controlla(ls, CFG) == {}
